@@ -4924,6 +4924,29 @@ function aulaEmVigor(aluno) {
    o rascunho antigo não vale mais sozinho, sem depender da data. Sem
    aula em vigor (ciclo avulso), não há identidade de aula pra comparar,
    então mantém a regra antiga (só vale no mesmo dia). */
+/* Rascunho da sessão compartilhado entre treinadores (correção de 18/11/2026: quem já estava com a sessão aberta não recebia o que
+   outro treinador montava ou mudava, e a mudança seguinte dele passava por cima). O rascunho mora no aluno/turma, que a nuvem já
+   sincroniza ao vivo; este gancho leva para a tela aberta o rascunho que chegou de outro aparelho. conteudo: o que vale comparar
+   (texto JSON); aplicar(rascunho|null): põe na tela. Devolve { marcarGravado(json), aviso }. */
+function useRascunhoRemoto(remoto, conteudo, local, aplicar) {
+  const jsonRemoto = conteudo(remoto);
+  const ultimoRef = useRef(jsonRemoto);
+  const [aviso, setAviso] = useState("");
+  useEffect(() => {
+    if (jsonRemoto === ultimoRef.current) return;
+    ultimoRef.current = jsonRemoto;
+    if (jsonRemoto === local) return;
+    aplicar(remoto);
+    setAviso(remoto ? "Sessão atualizada por outro treinador." : "Outro treinador registrou ou descartou esta sessão.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jsonRemoto]);
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(""), 6000); return () => clearTimeout(t); }, [aviso]);
+  /* mudança feita aqui: grava como a versão conhecida e tira o aviso antigo (o eco da versão que veio de fora não conta) */
+  return { marcarGravado: (json) => { if (json !== ultimoRef.current) setAviso(""); ultimoRef.current = json; }, aviso };
+}
+function AvisoSessaoRemota({ texto }) {
+  return texto ? <p data-aviso-sessao-remota role="status" style={{ ...prosa, fontSize: 13, fontWeight: 600, color: C.quadra, margin: "6px 0" }}>{texto}</p> : null;
+}
 function rascunhoAindaValido(rascunho, aulaId, hoje) {
   if (!rascunho) return false;
   if (aulaId) return rascunho.aulaId === aulaId;
@@ -7873,9 +7896,15 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   }, [ultimoRemovido]);
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
 
+  const conteudoRascunhoInd = (r) => (r && r.plano ? JSON.stringify({ plano: r.plano, personalizados: r.personalizados || [], divergencias: r.divergencias || [] }) : "null");
+  const rascunhoRemotoInd = rascunhoAindaValido(aluno.rascunhoSessao, aulaAtualAoAbrir ? aulaAtualAoAbrir.id : null, hoje) ? aluno.rascunhoSessao : null;
+  const remotoInd = useRascunhoRemoto(rascunhoRemotoInd, conteudoRascunhoInd, conteudoRascunhoInd({ plano, personalizados, divergencias }), (r) => {
+    setPlano(r ? r.plano : null); setPersonalizados(r ? r.personalizados || [] : []); setDivergencias(r ? r.divergencias || [] : []);
+  });
   const rascunhoPrimeiraRef = useRef(true);
   useEffect(() => {
     if (rascunhoPrimeiraRef.current) { rascunhoPrimeiraRef.current = false; return; }
+    remotoInd.marcarGravado(conteudoRascunhoInd({ plano, personalizados, divergencias }));
     setAlunos((prev) => prev.map((a) => (a.id !== aluno.id ? a : {
       ...a, rascunhoSessao: plano ? { plano, personalizados, divergencias, criadoEm: hoje, aulaId: aulaAtual ? aulaAtual.id : null } : null,
     })));
@@ -8192,6 +8221,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       ...(window.MTYAtendimento && !(aulaAtual && statusAulaPlano !== "feita")
         ? window.MTYAtendimento.camposDoRegistro({ fichaVista: prepVista, marcados: atendMarcados, conquista: atend.conquista, pilares: atend.pilares, notaPessoal: atend.notaPessoal }) : {}),
     };
+    remotoInd.marcarGravado("null"); /* quem registrou foi este aparelho: não é aviso de outro treinador */
     const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
       const atualizado = { ...a, historico: [...(a.historico || []), cods], registros: [...(a.registros || []), reg], rascunhoSessao: null };
@@ -8294,6 +8324,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
   return (
     <div>
+      <AvisoSessaoRemota texto={resumoRegistro ? "" : remotoInd.aviso} />
       {resumoRegistro ? (
         <ConfirmacaoRegistroAula resumo={resumoRegistro} aoFechar={() => setResumoRegistro(null)} setSubaba={setSubaba} />
       ) : (
@@ -18024,9 +18055,12 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      distinguir o que de fato rodou em quadra, diferente da individual. */
   const [statusExercicios, setStatusExercicios] = useState({});
 
+  const conteudoRascunhoTurma = (r) => (r && r.sessaoTurma ? JSON.stringify(r.sessaoTurma) : "null");
+  const remotoTurma = useRascunhoRemoto(rascunhoTurma, conteudoRascunhoTurma, conteudoRascunhoTurma(sessaoTurma ? { sessaoTurma } : null), (r) => setSessaoTurma(r ? r.sessaoTurma : null));
   const rascunhoTurmaPrimeiraRef = useRef(true);
   useEffect(() => {
     if (rascunhoTurmaPrimeiraRef.current) { rascunhoTurmaPrimeiraRef.current = false; return; }
+    remotoTurma.marcarGravado(conteudoRascunhoTurma(sessaoTurma ? { sessaoTurma } : null));
     setTurmas((prev) => prev.map((t) => (t.id !== turma.id ? t : {
       ...t, rascunhoSessaoTurma: sessaoTurma ? { sessaoTurma, criadoEm: hoje, aulaId: aulaTurmaAoAbrir ? aulaTurmaAoAbrir.id : null } : null,
     })));
@@ -18241,6 +18275,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     <div>
       <button onClick={aoFechar} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Turmas</button>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{turma.nome}</h1>
+      <AvisoSessaoRemota texto={remotoTurma.aviso} />
       <div style={{ marginBottom: (turma.horarios || []).length > 0 ? 4 : 20 }}>
         <Etiqueta>{turma.duracaoPadrao} · {membros.length} jogadores{rotuloProfessores(turma.professorNome, turma.professorAuxiliarNome)}</Etiqueta>
       </div>
@@ -23789,6 +23824,22 @@ async function arSessoesLista(limite) {
   const s = await r.collection("arSessoes").orderBy("data", "desc").limit(limite).get();
   return s.docs.map((d) => d.data());
 }
+/* sessões do dia ao vivo (correção de 18/11/2026: o que um treinador montava ou mudava não chegava aos outros, e quem abria
+   depois podia montar outra sessão da mesma turma). cb recebe as sessões de hoje já gravadas na nuvem (sem as que este aparelho
+   ainda está enviando). Sem nuvem, não há o que ouvir. */
+async function arOuvirSessoesDoDia(dia, cb) {
+  const r = await arRaiz();
+  if (!r) return () => {};
+  return r.collection("arSessoes").where("data", "==", dia).onSnapshot((snap) => {
+    cb(snap.docs.filter((d) => !d.metadata.hasPendingWrites).map((d) => d.data()));
+  }, (e) => console.error("sessões do dia (alto rendimento):", e));
+}
+/* "Usar este plano": o plano proposto (IA ou modelo) vira o plano do atleta; o anterior vai para o histórico */
+function aprovarPlanoAR(doc) {
+  const p = doc && doc.plano, c = doc && doc.planoCandidato;
+  if (!c) return null;
+  return { plano: { ...c, versao: p ? (p.versao || 1) + 1 : 1 }, planoCandidato: null, planoHistorico: p ? [...(doc.planoHistorico || []), p].slice(-5) : (doc && doc.planoHistorico) || [] };
+}
 async function arGravarSessao(sessao) {
   const r = await arRaiz();
   if (!r) { arLocal.gravar("sessoes", [...(arLocal.ler("sessoes", []) || []).filter((x) => x.id !== sessao.id), sessao]); return; }
@@ -24087,10 +24138,7 @@ function PlanoAR({ aluno, doc, salvarDoc, hoje, regs, avs }) {
     const novo = montarBase(); novo.origem = "modelo";
     salvarDoc({ planoCandidato: novo });
   };
-  const usar = () => {
-    const novo = { ...candidato, versao: p ? (p.versao || 1) + 1 : 1 };
-    salvarDoc({ plano: novo, planoCandidato: null, planoHistorico: p ? [...(doc.planoHistorico || []), p].slice(-5) : doc.planoHistorico || [] });
-  };
+  const usar = () => { const patch = aprovarPlanoAR(doc); if (patch) salvarDoc(patch); };
   const listaSemanas = (pl, abrivel) => (pl.blocos || []).map((b) => (
     <div key={b.id} style={{ borderTop: "1px solid " + C.linha, marginTop: 8, paddingTop: 6 }}>
       <button type="button" onClick={() => setAberto(aberto === b.id ? null : b.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", width: "100%" }}>
@@ -24347,7 +24395,9 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
       autor={{ uid: uidAtual || null, nome: eu.nome || "" }} academia={(identidade && (identidade.nomeAcademia || identidade.nome)) || ""} planos={[]} aoVoltar={() => setModo({ v: "lista" })} />;
   }
   if (modo.v === "sessao") {
-    return <SessaoAltoRendimento atletas={atletas} ars={ars} regs={regs} sessaoInicial={modo.sessao || null} turma={modo.turma || null} uidAtual={uidAtual} nomeProfessor={eu.nome || ""} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+    return <SessaoAltoRendimento atletas={atletas} ars={ars} regs={regs} sessaoInicial={modo.sessao || null} turma={modo.turma || null} uidAtual={uidAtual} nomeProfessor={eu.nome || ""}
+      aoAprovarPlano={async (id) => { const patch = aprovarPlanoAR(ars[id]); if (!patch) return; await arGravar(id, patch); setArs((x) => ({ ...x, [id]: { ...(x[id] || {}), ...patch } })); }}
+      exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
       aoVoltar={async () => { setModo({ v: "lista" }); await carregar(); }} />;
   }
   if (modo.v === "turma") {
@@ -24433,6 +24483,7 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
           <div key={a.id} data-atleta-ar={a.id} style={cartaoAR}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>{a.nome}</p><ChipStatusAR st={st} /></div>
             {m ? <p style={{ ...prosa, fontSize: 13.5, marginTop: 2 }}>{m.blocoTitulo} · semana {m.semanaN} de {m.totalSemanas} · {m.pct}% da semana{m.atrasados.length ? " · " + m.atrasados.length + " essencial(is) atrasado(s)" : ""}</p>
+              : d.planoCandidato ? <p data-plano-a-aprovar style={{ ...prosa, fontSize: 13.5, marginTop: 2, color: C.saibro }}>Plano montado, falta aprovar: abra o atleta e toque em Usar este plano (sem isso ele não entra na sessão).</p>
               : <p style={{ ...prosa, fontSize: 13.5, marginTop: 2, color: C.saibro }}>Sem plano individual: abra e gere o plano.</p>}
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Carga da semana {c.ua} UA{c.pct != null ? " (" + c.pct + "%)" : ""} · hoje: {teto.r}{pend ? " · " + pend + " registro(s) do atleta a confirmar" : ""}</p>
             {c.pct != null && <div style={{ marginTop: 4 }}><BarraAR pct={c.pct} /></div>}
@@ -24545,14 +24596,34 @@ function ExercicioSessaoAR({ codigo, tema, editado, fechada, aoTrocar, aoRemover
     </div>
   );
 }
-function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtual, nomeProfessor, aoVoltar, exerciciosCustom, setExerciciosCustom }) {
+function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtual, nomeProfessor, aoVoltar, aoAprovarPlano, exerciciosCustom, setExerciciosCustom }) {
   const A = ARM(), hoje = hojeEq();
+  const [avisoOutro, setAvisoOutro] = useState("");
+  const [aprovando, setAprovando] = useState("");
   /* sessão de uma turma: começa com os atletas da turma (quem está em torneio vem desmarcado); os outros ficam à mão, desmarcados */
   const daTurma = (id) => !turma || (turma.membros || []).includes(id);
   const [sessao, setSessao] = useState(sessaoInicial), [presentes, setPresentes] = useState(() => atletas.filter((a) => daTurma(a.id) && A.statusAtleta(ars[a.id] || {}, hoje).v !== "torneio").map((a) => a.id));
   const [duracao, setDuracao] = useState(120), [fechando, setFechando] = useState(false), [entradas, setEntradas] = useState({}), [salvando, setSalvando] = useState(false);
   const nome = (id) => ((atletas.find((a) => a.id === id) || {}).nome || "").split(" ")[0];
   const fechada = sessao && sessao.status === "fechada";
+  /* a sessão ao vivo para todos os treinadores: o que outro mudar aparece aqui; sem sessão ainda, a da turma que outro já
+     montou hoje é adotada (em vez de nascer uma segunda) */
+  const turmaId = turma ? turma.id : null;
+  useEffect(() => {
+    let parar = () => {}, vivo = true;
+    arOuvirSessoesDoDia(hoje, (lista) => {
+      setSessao((atual) => {
+        const remota = atual ? lista.find((x) => x.id === atual.id) : turmaId ? lista.find((x) => x.turmaId === turmaId && x.status !== "fechada") : null;
+        if (!remota || JSON.stringify(remota) === JSON.stringify(atual)) return atual;
+        const quem = remota.alteradoPorNome || remota.treinadorNome || "outro treinador";
+        setAvisoOutro(atual ? "Sessão atualizada por " + quem + "." : "Esta turma já tem a sessão de hoje, montada por " + quem + ".");
+        return remota;
+      });
+    }).then((f) => { if (vivo) parar = f; else f(); });
+    return () => { vivo = false; parar(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoje, turmaId]);
+  useEffect(() => { if (!avisoOutro) return; const t = setTimeout(() => setAvisoOutro(""), 6000); return () => clearTimeout(t); }, [avisoOutro]);
   const montar = async () => {
     const lista = atletas.filter((a) => presentes.includes(a.id) && (ars[a.id] || {}).plano).map((a) => ({ id: a.id, nome: a.nome, ar: ars[a.id], registros: regs[a.id] || [] }));
     const s = A.montarSessao({ atletas: lista, hoje, duracaoMin: duracao, catalogo: TODOS_EXERCICIOS(), estagio: "C" });
@@ -24565,7 +24636,11 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtu
     }
     setSessao(s); await arGravarSessao(s);
   };
-  const alterar = async (fn) => { const s = fn(JSON.parse(JSON.stringify(sessao))); setSessao(s); await arGravarSessao(s); };
+  const alterar = async (fn) => {
+    const s = fn(JSON.parse(JSON.stringify(sessao)));
+    s.alteradoEm = new Date().toISOString(); s.alteradoPorUid = uidAtual || null; s.alteradoPorNome = nomeProfessor || "";
+    setSessao(s); await arGravarSessao(s);
+  };
   const tirarDoBloco = (bi, id) => alterar((s) => { const b = s.blocos[bi]; b.atletas = b.atletas.filter((x) => x !== id); if (b.conteudoPorAtleta) delete b.conteudoPorAtleta[id]; if (b.tarefas) delete b.tarefas[id]; return s; });
   const tirarBloco = (bi) => alterar((s) => { s.blocos.splice(bi, 1); s.blocos.forEach((b, i) => { b.ordem = i + 1; }); return s; });
   /* troca do exercício de um bloco (alunoId/ti: tarefa individual de um atleta) */
@@ -24616,7 +24691,12 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtu
             return (
               <label key={a.id} data-presenca={a.id} style={{ ...cartaoAR, display: "flex", gap: 10, alignItems: "center", opacity: semPlano && !soPresenca ? 0.6 : 1 }}>
                 <input type="checkbox" disabled={semPlano && !soPresenca} checked={presentes.includes(a.id) && (!semPlano || soPresenca)} onChange={(e) => setPresentes(e.target.checked ? [...presentes, a.id] : presentes.filter((x) => x !== a.id))} style={{ width: 20, height: 20 }} />
-                <span style={{ flex: 1 }}><b style={{ fontFamily: ARCH }}>{a.nome}</b><br /><span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{semPlano ? (soPresenca ? "Sem plano individual: conta a presença, mas não entra na montagem" : "Sem plano individual") : st.r + " · " + A.tetoDoDia(d, regs[a.id], hoje).r}</span></span>
+                <span style={{ flex: 1 }}><b style={{ fontFamily: ARCH }}>{a.nome}</b><br /><span style={{ ...prosa, fontSize: 12.5, color: semPlano && d.planoCandidato ? C.saibro : C.grafite }}>{semPlano ? (d.planoCandidato ? "Plano montado, falta aprovar para entrar na sessão" : soPresenca ? "Sem plano individual: conta a presença, mas não entra na montagem" : "Sem plano individual") : st.r + " · " + A.tetoDoDia(d, regs[a.id], hoje).r}</span></span>
+                {semPlano && d.planoCandidato && aoAprovarPlano && (
+                  <Botao pequeno variante="vazio" disabled={aprovando === a.id} onClick={async (ev) => { ev.preventDefault(); setAprovando(a.id); try { await aoAprovarPlano(a.id); if (!presentes.includes(a.id)) setPresentes((l) => [...l, a.id]); } finally { setAprovando(""); } }}>
+                    {aprovando === a.id ? "Aprovando…" : "Usar o plano"}
+                  </Botao>
+                )}
               </label>
             );
           };
@@ -24637,6 +24717,13 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtu
           <select value={duracao} onChange={(e) => setDuracao(Number(e.target.value))} style={entrada} aria-label="Duração da sessão">{[60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} min</option>)}</select>
           <Botao onClick={montar} disabled={!presentes.filter((id) => (ars[id] || {}).plano).length}>Montar a sessão</Botao>
         </div>
+        {!presentes.filter((id) => (ars[id] || {}).plano).length && (
+          <p data-sem-plano-aprovado style={{ ...prosa, fontSize: 13, color: C.saibro, marginTop: 8 }}>
+            {atletas.some((a) => presentes.includes(a.id) && (ars[a.id] || {}).planoCandidato)
+              ? "Para montar a sessão, pelo menos um atleta presente precisa do plano aprovado: toque em Usar o plano ao lado do nome (ou revise na ficha do atleta)."
+              : "Para montar a sessão, pelo menos um atleta presente precisa ter o plano individual: abra o atleta no Alto rendimento e gere o plano."}
+          </p>
+        )}
       </div>
     );
   }
@@ -24671,6 +24758,7 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtu
     <div data-sessao-blocos>
       <Botao pequeno variante="vazio" onClick={aoVoltar}>← Alto rendimento</Botao>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>{sessao.turmaNome ? "Turma " + sessao.turmaNome + " · " : "Sessão de "}{dataBR(sessao.data)} · {sessao.duracaoMin} min</h1>
+      {avisoOutro && <p data-aviso-outro role="status" style={{ ...prosa, fontSize: 13, fontWeight: 600, color: C.quadra, marginTop: 4 }}>{avisoOutro}</p>}
       {(sessao.semPlano || []).length > 0 && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Presença contada, sem plano individual: {sessao.semPlano.map(nome).join(", ")}.</p>}
       {fechada && <p style={{ ...prosa, fontSize: 13.5, color: C.quadra }}>Sessão fechada: os registros já entraram no marcador e na carga de cada atleta.</p>}
       <div style={{ ...cartaoAR }}>
@@ -24848,7 +24936,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-acesso-por-email";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-sessao-compartilhada";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24857,7 +24945,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Cadastro rápido e Área do aluno com e-mail, sem link", d: "Em Jogadores, o Cadastro rápido cadastra o aluno só com o nome, sem aula nem planejamento (nascimento, e-mail e professor são opcionais); ele fica no grupo Só cadastro e, quando começar a treinar, é só tocar em Completar cadastro. Na ficha de cada aluno, o cartão Área do aluno guarda até 2 e-mails (aluno e responsável): toque em Enviar convite e a pessoa recebe um e-mail para criar a senha. Depois ela entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios sem precisar de link. Para tirar o acesso, apague o e-mail. O link do aluno continua funcionando como antes.", onde: "Jogadores › Cadastro rápido · Jogadores › abra o jogador › Perfil", aba: "alunos" },
+  { novo: true, t: "Sessão do dia igual para todos os treinadores", d: "Quando um treinador gera ou muda a sessão do dia (individual, de turma ou do alto rendimento), quem está com a mesma sessão aberta passa a ver a mudança na hora, com o aviso de quem mudou, e a edição de um não apaga mais a do outro. No alto rendimento, quem abre a sessão da turma depois entra na sessão que já foi montada, em vez de montar outra. E o atleta com o plano gerado e ainda sem aprovar aparece como Plano montado, falta aprovar, com o botão Usar o plano ali mesmo (antes a sessão não montava e não dizia por quê).", onde: "Jogadores › Sessão de hoje · Turmas › Sessão · Grupos › Alto rendimento › Sessão da turma", aba: "equipes" },
+  { t: "Cadastro rápido e Área do aluno com e-mail, sem link", d: "Em Jogadores, o Cadastro rápido cadastra o aluno só com o nome, sem aula nem planejamento (nascimento, e-mail e professor são opcionais); ele fica no grupo Só cadastro e, quando começar a treinar, é só tocar em Completar cadastro. Na ficha de cada aluno, o cartão Área do aluno guarda até 2 e-mails (aluno e responsável): toque em Enviar convite e a pessoa recebe um e-mail para criar a senha. Depois ela entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios sem precisar de link. Para tirar o acesso, apague o e-mail. O link do aluno continua funcionando como antes.", onde: "Jogadores › Cadastro rápido · Jogadores › abra o jogador › Perfil", aba: "alunos" },
   { t: "Análise de movimento: fotos das fases certas no iPhone", d: "No iPhone, as imagens das fases nos relatórios da análise de movimento saíam cortadas ou esticadas. Agora cada fase sai como uma imagem só, com a foto do vídeo e o boneco lado a lado, sempre na proporção do vídeo: no relatório completo (PDF), nas fotos do caderno, no relatório do aluno e no relatório que a família abre. Vale também para as análises já salvas.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Site sem consultorias e sem valores", d: "A página de entrada (teamyoda.com.br) não mostra mais as consultorias com o Richard nem os valores: saíram a seção, os preços e os links do menu e do rodapé. Ficam a Metodologia MTY, as unidades, quem conduz e o acesso à Área do aluno.", onde: "teamyoda.com.br" },
   { t: "Academia Digital pausada para os alunos", d: "Por decisão do Richard, a Academia Digital está fechada para alunos e famílias por enquanto. Quem abrir a Academia vê um aviso e vai para a Área do aluno (teamyoda.com.br/minha-area), que continua igual: plano, aulas, reposições, relatórios e a conversa com o professor. O cartão da Academia saiu do Meu plano e o site não mostra mais a Academia Digital. Nada foi apagado: cursos, contas, progresso e análises ficam guardados para quando reabrir. A equipe continua entrando para preparar o conteúdo em Mais › Academia Digital.", onde: "Mais › Academia Digital", aba: "academia-digital" },

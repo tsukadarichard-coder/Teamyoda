@@ -1,6 +1,6 @@
 /* "Sessão de hoje": o botão Gerar sessão precisa funcionar para jogador sem histórico, sem prioridades, de qualquer estágio e com plano (a tela quebrava com TypeError).
    Roda a TelaSessao real em React/Babel locais (defina CDN_DIR). Rode: node tests/smoke-sessao-hoje.js [mty|autonomo] */
-const fs=require("fs"),path=require("path"),http=require("http");const {chromium}=require("/opt/node22/lib/node_modules/playwright");
+const fs=require("fs"),path=require("path"),http=require("http");const {chromium}=require("playwright");
 const assert=require("assert");
 const CDN=process.env.CDN_DIR||"/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if(!fs.existsSync(CDN)){console.log("smoke-sessao-hoje: pulado (sem React/Babel locais; defina CDN_DIR)");process.exit(0);}
@@ -28,7 +28,7 @@ const pagina=`<!doctype html><meta charset=utf-8><div id=root></div><script src=
 <script type="text/babel">${corpo}</script>`;
 const m={"/aulas-mes.js":require("path").join(__dirname,"../../mty/aulas-mes.js"),"/r.js":CDN+"/react-18.3.1/package/umd/react.development.js","/d.js":CDN+"/react-dom-18.3.1/package/umd/react-dom.development.js","/p.js":CDN+"/prop-types-15.8.1/package/prop-types.min.js","/c.js":CDN+"/recharts-2.15.4/package/umd/Recharts.js","/b.js":CDN+"/babel-standalone-7.29.9/package/babel.min.js"};
 const srv=http.createServer((q,r)=>{const u=q.url.split("?")[0];if(u==="/"){r.writeHead(200,{"content-type":"text/html; charset=utf-8"});return r.end(pagina)}if(m[u]){r.writeHead(200,{"content-type":"text/javascript"});return r.end(fs.readFileSync(m[u]))}const f=path.join(raiz,decodeURIComponent(u));if(f.startsWith(raiz)&&fs.existsSync(f)&&fs.statSync(f).isFile()){r.writeHead(200,{"content-type":"text/javascript"});return r.end(fs.readFileSync(f))}r.writeHead(404);r.end()}).listen(0);
-(async()=>{const b=await chromium.launch({executablePath:"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",args:["--no-sandbox"]}),p=await b.newPage({viewport:{width:480,height:900}});
+(async()=>{const b=await chromium.launch({args:["--no-sandbox"]}),p=await b.newPage({viewport:{width:480,height:900}});
 const erros=[];p.on("pageerror",e=>erros.push(e.message));p.on("console",m=>{if(m.type()==="error"&&!/Failed to load|BABEL/.test(m.text()))erros.push("c:"+m.text().slice(0,200))});
 await p.goto("http://localhost:"+srv.address().port+"/");
 await p.waitForFunction(()=>document.body.innerText.length>50,null,{timeout:120000});
