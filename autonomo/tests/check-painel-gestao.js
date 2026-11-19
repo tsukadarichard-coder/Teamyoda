@@ -13,6 +13,16 @@ const capturas = process.argv[2] || "";
 const raiz = path.join(__dirname, "../../mty");
 const html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
 const dono = (/const DONOS_FINANCEIRO = \["([^"]+)"/.exec(html) || [])[1];
+/* netlify.toml: /gestao abre o app sem redirecionar (a Netlify trata /gestao e /gestao/ como o mesmo endereço; uma regra
+   "/gestao/ → /gestao" virou laço de redirecionamento em 18/11/2026) */
+{
+  const toml = fs.readFileSync(path.join(__dirname, "../../netlify.toml"), "utf8");
+  const regras = toml.split("[[redirects]]").slice(1).map((r) => ({ from: (/from\s*=\s*"([^"]+)"/.exec(r) || [])[1], to: (/to\s*=\s*"([^"]+)"/.exec(r) || [])[1], status: Number((/status\s*=\s*(\d+)/.exec(r) || [])[1]) }));
+  const daGestao = regras.filter((r) => /^\/gestao/.test(r.from || ""));
+  assert(daGestao.length && daGestao.every((r) => r.status === 200), "regras de /gestao só reescrevem (200): " + JSON.stringify(daGestao));
+  assert(!regras.some((r) => /^\/gestao/.test(r.to || "")), "nenhuma regra manda para /gestao (laço)");
+  assert.deepStrictEqual(daGestao.find((r) => r.from === "/gestao"), { from: "/gestao", to: "/index.html", status: 200 });
+}
 assert(dono, "lista de donos do Financeiro");
 const FAKE = `window.firebase = (function () {
   var store = {}, ouv = [], F = window.__FAKE || {};
