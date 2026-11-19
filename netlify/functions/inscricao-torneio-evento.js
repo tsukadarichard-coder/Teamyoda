@@ -22,7 +22,9 @@
    Pagamento: o app não cobra nada; a gestão marca à mão (pendente, pago, isento) dentro do app.
    Opções de inscrição com valor (pedido do Richard em 19/11/2026, "1 semana ou 2 semanas... valor que deve aparecer para quem se
    inscreve"): `opcoes` [{id, nome, valor}] no evento; quem se inscreve escolhe uma (obrigatório quando há opções) e vê o valor no
-   formulário; sem opções, vale o `valor` do evento. A inscrição guarda `opcaoId`, `opcaoNome` e `valor`. */
+   formulário; sem opções, vale o `valor` do evento. A inscrição guarda `opcaoId`, `opcaoNome` e `valor`.
+   Diária avulsa (mesmo dia, "Pode colocar tb diária avulsa"): opção com `porDia: true`; a pessoa escolhe os dias (dias úteis entre
+   `data` e `dataFim`) e o valor é o da diária × dias; a inscrição guarda `dias` [aaaa-mm-dd]. */
 const P = require("./_push");
 const { admin, app } = require("./_firebase-admin");
 
@@ -94,7 +96,8 @@ async function handleGet(event) {
       local: e.local, tipo: e.tipo, descricao: e.descricao, vagas: e.vagas ?? null,
       confirmados: (e.convidados || []).filter((c) => c.status === "confirmado").length,
       /* site do Team Yoda: só o que é público (nunca nomes nem telefones); o valor e as opções aparecem no formulário de inscrição */
-      opcoes: (Array.isArray(e.opcoes) ? e.opcoes : []).filter((o) => o && o.id && o.nome).map((o) => ({ id: o.id, nome: o.nome, valor: o.valor ?? null })),
+      opcoes: (Array.isArray(e.opcoes) ? e.opcoes : []).filter((o) => o && o.id && o.nome).map((o) => ({ id: o.id, nome: o.nome, valor: o.valor ?? null, ...(o.porDia ? { porDia: true } : {}) })),
+      dias: diasUteis(e.data, e.dataFim),
       valor: e.valor ?? null,
       site: e.site === true, publico: e.publico || "", idadeMin: e.idadeMin ?? null, idadeMax: e.idadeMax ?? null,
       inscricoesAte: e.inscricoesAte || "", cartaz: e.cartaz || "", dataFim: e.dataFim || "",
@@ -190,7 +193,25 @@ function opcaoEscolhida(evento, body) {
   if (!opcoes.length) return evento.valor != null ? { valor: evento.valor } : {};
   const o = opcoes.find((x) => x.id === String(body.opcaoId || ""));
   if (!o) throw new ErroPublico(400, "Escolha uma das opções de inscrição.");
-  return { opcaoId: o.id, opcaoNome: String(o.nome || "").slice(0, 80), valor: o.valor ?? null };
+  if (!o.porDia) return { opcaoId: o.id, opcaoNome: String(o.nome || "").slice(0, 80), valor: o.valor ?? null };
+  /* diária avulsa: os dias escolhidos precisam ser dias do evento */
+  const possiveis = diasUteis(evento.data, evento.dataFim);
+  const pedidos = [...new Set((Array.isArray(body.dias) ? body.dias : []).map(String))];
+  const dias = pedidos.filter((d) => possiveis.includes(d)).sort();
+  if (!pedidos.length) throw new ErroPublico(400, "Escolha pelo menos um dia da diária.");
+  if (pedidos.length !== dias.length) throw new ErroPublico(400, "Algum dia escolhido não é dia do evento. Atualize a página.");
+  return { opcaoId: o.id, opcaoNome: String(o.nome || "").slice(0, 80), dias, valor: o.valor != null ? Math.round(o.valor * dias.length * 100) / 100 : null };
+}
+/* dias úteis (segunda a sexta) do evento, de `data` até `dataFim` (no máximo 62 dias) */
+function diasUteis(inicio, fim) {
+  if (!DATA.test(String(inicio || ""))) return [];
+  const out = [], ultimo = DATA.test(String(fim || "")) && fim >= inicio ? fim : inicio;
+  for (let d = new Date(inicio + "T12:00:00Z"), n = 0; n < 62; n++, d.setUTCDate(d.getUTCDate() + 1)) {
+    const iso = d.toISOString().slice(0, 10);
+    if (iso > ultimo) break;
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) out.push(iso);
+  }
+  return out;
 }
 
 /* evento com faixa de idade (ex.: crianças de 8 a 12 anos): dados da criança e autorização do responsável */
