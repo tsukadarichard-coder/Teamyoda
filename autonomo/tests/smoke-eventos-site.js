@@ -154,6 +154,14 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   const zap = decodeURIComponent(await q.getAttribute('[data-inscricao-evento="i2"] [data-zap-inscricao]', "href"));
   assert(/5511977776666/.test(zap) && /Theo Lima/.test(zap) && /1 semana/.test(zap) && /R\$\s?450,00/.test(zap), zap);
   if (capturas) { await q.click('[data-filtro-inscricoes="todas"]'); await q.screenshot({ path: path.join(capturas, "painel-evento.png"), fullPage: true }); }
+  /* quais opções o cliente vê: desligar a diária do site no Editar evento */
+  await q.getByRole("button", { name: "Editar evento" }).click();
+  await q.waitForSelector("[data-opcoes-evento]");
+  await q.locator('[data-opcao-evento="2"] [data-opcao-no-site]').uncheck();
+  await q.getByRole("button", { name: "Salvar alterações" }).click();
+  await q.waitForFunction(() => (window.__eventos[0].opcoes || []).find((o) => o.id === "s3").oculta === true);
+  assert(/Diária avulsa R\$\s?100,00 por dia \(fora do site\)/.test(await q.innerText("[data-evento-aberto]")), "opção marcada fora do site");
+  assert.strictEqual(await q.evaluate(() => window.__eventos[0].convidados.length), 4, "editar não mexe nas inscrições");
   /* planilha */
   const [dl] = await Promise.all([q.waitForEvent("download"), q.getByRole("button", { name: "Baixar planilha (Excel)" }).click()]);
   const arq = path.join(require("os").tmpdir(), "evento-teste-" + process.pid + ".xlsx"); await dl.saveAs(arq);

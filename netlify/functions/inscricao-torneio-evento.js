@@ -24,7 +24,9 @@
    inscreve"): `opcoes` [{id, nome, valor}] no evento; quem se inscreve escolhe uma (obrigatório quando há opções) e vê o valor no
    formulário; sem opções, vale o `valor` do evento. A inscrição guarda `opcaoId`, `opcaoNome` e `valor`.
    Diária avulsa (mesmo dia, "Pode colocar tb diária avulsa"): opção com `porDia: true`; a pessoa escolhe os dias (dias úteis entre
-   `data` e `dataFim`) e o valor é o da diária × dias; a inscrição guarda `dias` [aaaa-mm-dd]. */
+   `data` e `dataFim`) e o valor é o da diária × dias; a inscrição guarda `dias` [aaaa-mm-dd].
+   Quais opções o cliente vê ("No cadastro do evento eu fico com a opção de mostrar quais opções de compra o cliente vai ter"):
+   opção com `oculta: true` não vai para o site nem é aceita na inscrição pública (a gestão ainda usa no painel). */
 const P = require("./_push");
 const { admin, app } = require("./_firebase-admin");
 
@@ -96,7 +98,7 @@ async function handleGet(event) {
       local: e.local, tipo: e.tipo, descricao: e.descricao, vagas: e.vagas ?? null,
       confirmados: (e.convidados || []).filter((c) => c.status === "confirmado").length,
       /* site do Team Yoda: só o que é público (nunca nomes nem telefones); o valor e as opções aparecem no formulário de inscrição */
-      opcoes: (Array.isArray(e.opcoes) ? e.opcoes : []).filter((o) => o && o.id && o.nome).map((o) => ({ id: o.id, nome: o.nome, valor: o.valor ?? null, ...(o.porDia ? { porDia: true } : {}) })),
+      opcoes: (Array.isArray(e.opcoes) ? e.opcoes : []).filter((o) => o && o.id && o.nome && !o.oculta).map((o) => ({ id: o.id, nome: o.nome, valor: o.valor ?? null, ...(o.porDia ? { porDia: true } : {}) })),
       dias: diasUteis(e.data, e.dataFim),
       valor: e.valor ?? null,
       site: e.site === true, publico: e.publico || "", idadeMin: e.idadeMin ?? null, idadeMax: e.idadeMax ?? null,
@@ -189,7 +191,7 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
 
 /* opção de inscrição (1 semana, 2 semanas…): obrigatória quando o evento tem opções; guarda o nome e o valor dela */
 function opcaoEscolhida(evento, body) {
-  const opcoes = (Array.isArray(evento.opcoes) ? evento.opcoes : []).filter((o) => o && o.id);
+  const opcoes = (Array.isArray(evento.opcoes) ? evento.opcoes : []).filter((o) => o && o.id && !o.oculta);
   if (!opcoes.length) return evento.valor != null ? { valor: evento.valor } : {};
   const o = opcoes.find((x) => x.id === String(body.opcaoId || ""));
   if (!o) throw new ErroPublico(400, "Escolha uma das opções de inscrição.");
