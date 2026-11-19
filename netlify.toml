@@ -37,17 +37,18 @@
   to = "/index.html"
   status = 200
 
-# Painel de gestão do Team Yoda (18/11/2026): o mesmo app em modo gestão (mty/index.html lê o endereço /gestao). Sem a barra no
-# fim, para os arquivos do app (scout/…, assets/…) seguirem saindo da raiz do site.
-[[redirects]]
-  from = "/gestao/"
-  to = "/gestao"
-  status = 301
-  force = true
-
+# Painel de gestão do Team Yoda (18/11/2026): o mesmo app em modo gestão (mty/index.html lê o endereço /gestao).
+# A Netlify trata /gestao e /gestao/ como o mesmo endereço (uma regra "/gestao/ → /gestao" virava um laço de redirecionamento,
+# corrigido em 19/11/2026): as duas formas abrem o app; e, aberto como /gestao/, os arquivos que o app pede com caminho relativo
+# (/gestao/scout/…, /gestao/assets/…) saem da raiz do site.
 [[redirects]]
   from = "/gestao"
   to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/gestao/*"
+  to = "/:splat"
   status = 200
 
 [[redirects]]
