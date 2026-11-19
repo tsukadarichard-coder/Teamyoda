@@ -17303,20 +17303,28 @@ const idadeEv = (nasc, data) => {
   return a - an - (m < mn || (m === mn && d < dn) ? 1 : 0);
 };
 const pagamentoEv = (c) => (c && c.pagamento) || { status: "pendente" };
+/* valor de uma inscrição: o da opção escolhida (1 semana, 2 semanas…), senão o valor do evento */
+function valorInscricaoEv(ev, c) {
+  const v = numeroEv(c && c.valor);
+  if (v != null) return v;
+  const o = (ev.opcoes || []).find((x) => c && x.id === c.opcaoId);
+  return o ? numeroEv(o.valor) : numeroEv(ev.valor);
+}
 function resumoEvento(ev) {
   const lista = ev.convidados || [], valor = numeroEv(ev.valor);
   const confirmados = lista.filter((c) => c.status === "confirmado"), espera = lista.filter((c) => c.status !== "confirmado");
   const pagos = lista.filter((c) => pagamentoEv(c).status === "pago"), isentos = lista.filter((c) => pagamentoEv(c).status === "isento");
   const emAberto = confirmados.filter((c) => !["pago", "isento"].includes(pagamentoEv(c).status));
-  const recebido = pagos.reduce((s, c) => s + (numeroEv(pagamentoEv(c).valor) ?? valor ?? 0), 0);
-  const aReceber = emAberto.length * (valor || 0);
+  const recebido = pagos.reduce((s, c) => s + (numeroEv(pagamentoEv(c).valor) ?? valorInscricaoEv(ev, c) ?? 0), 0);
+  const aReceber = emAberto.reduce((s, c) => s + (valorInscricaoEv(ev, c) || 0), 0);
+  const porOpcao = (ev.opcoes || []).map((o) => ({ nome: o.nome, inscritos: lista.filter((c) => c.opcaoId === o.id).length, pagos: pagos.filter((c) => c.opcaoId === o.id).length }));
   const custos = (ev.custos || []).reduce((s, x) => s + (numeroEv(x.valor) || 0), 0);
   return { inscritos: lista.length, confirmados: confirmados.length, espera: espera.length, pagos: pagos.length, isentos: isentos.length, emAberto: emAberto.length,
-    recebido, aReceber, custos, resultado: recebido - custos, previsto: recebido + aReceber - custos, valor };
+    recebido, aReceber, custos, resultado: recebido - custos, previsto: recebido + aReceber - custos, valor, porOpcao };
 }
 function textoZapEvento(ev, c) {
-  const resp = String(c.nomeContato || "").split(/\s+/)[0], valor = numeroEv(ev.valor);
-  return "Olá, " + resp + "! Recebemos a inscrição" + (c.criancaNome ? " de " + c.criancaNome : "") + " no " + ev.nome + (ev.data ? " (" + ev.data.split("-").reverse().join("/") + ")" : "") + "." +
+  const resp = String(c.nomeContato || "").split(/\s+/)[0], valor = valorInscricaoEv(ev, c);
+  return "Olá, " + resp + "! Recebemos a inscrição" + (c.criancaNome ? " de " + c.criancaNome : "") + " no " + ev.nome + (c.opcaoNome ? " (" + c.opcaoNome + ")" : ev.data ? " (" + ev.data.split("-").reverse().join("/") + ")" : "") + "." +
     (c.status !== "confirmado" ? " No momento as vagas estão preenchidas e a inscrição está na lista de espera; avisamos se abrir uma vaga." : valor ? " Para garantir a vaga, o valor é " + reaisEv(valor) + ". Seguem os dados para o pagamento: " : "");
 }
 async function baixarPlanilhaEvento(ev) {
@@ -17324,12 +17332,13 @@ async function baixarPlanilhaEvento(ev) {
   const insc = (ev.convidados || []).map((c) => { const pg = pagamentoEv(c); return {
     "Criança": c.criancaNome || "", "Nascimento": c.criancaNascimento ? c.criancaNascimento.split("-").reverse().join("/") : "", "Idade no evento": idadeEv(c.criancaNascimento, ev.data) ?? "",
     "Responsável": c.nomeContato || "", "WhatsApp": c.telefoneContato || "", "E-mail": c.email || "", "Já é aluno": sim[c.jaAluno] || "", "Observações": c.observacoes || "",
+    "Opção": c.opcaoNome || "", "Valor da inscrição (R$)": valorInscricaoEv(ev, c) ?? "",
     "Situação": c.status === "confirmado" ? "Confirmada" : "Lista de espera", "Pagamento": pg.status === "pago" ? "Pago" : pg.status === "isento" ? "Isento" : "Em aberto",
-    "Valor pago (R$)": pg.status === "pago" ? (numeroEv(pg.valor) ?? r.valor ?? "") : "", "Data do pagamento": pg.data ? pg.data.split("-").reverse().join("/") : "", "Forma": pg.forma || "",
+    "Valor pago (R$)": pg.status === "pago" ? (numeroEv(pg.valor) ?? valorInscricaoEv(ev, c) ?? "") : "", "Data do pagamento": pg.data ? pg.data.split("-").reverse().join("/") : "", "Forma": pg.forma || "",
     "Inscrito em": c.criadoEm ? new Date(c.criadoEm).toLocaleString("pt-BR") : "", "Origem": c.origem === "cliente" ? "Site / link" : "Equipe" }; });
   const resumo = [["Evento", ev.nome], ["Data", ev.data ? ev.data.split("-").reverse().join("/") + (ev.dataFim ? " a " + ev.dataFim.split("-").reverse().join("/") : "") : ""], ["Valor da inscrição (R$)", r.valor ?? ""], ["Inscritos", r.inscritos],
     ["Confirmados", r.confirmados], ["Lista de espera", r.espera], ["Pagos", r.pagos], ["Isentos", r.isentos], ["Em aberto", r.emAberto], ["Recebido (R$)", r.recebido],
-    ["A receber dos em aberto (R$)", r.aReceber], ["Custos (R$)", r.custos], ["Resultado até agora (R$)", r.resultado], ["Resultado previsto (R$)", r.previsto]];
+    ["A receber dos em aberto (R$)", r.aReceber], ...r.porOpcao.map((o) => ["Opção " + o.nome + " (inscritos / pagos)", o.inscritos + " / " + o.pagos]), ["Custos (R$)", r.custos], ["Resultado até agora (R$)", r.resultado], ["Resultado previsto (R$)", r.previsto]];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), "Resumo");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(insc.length ? insc : [{ "Criança": "" }]), "Inscrições");
@@ -17357,7 +17366,9 @@ async function enviarCartazEvento(arquivo) {
 function FormEvento({ inicial, aoSalvar, aoCancelar }) {
   const [f, setF] = useState(() => ({ ...novoEvento(), ...(inicial || {}),
     vagas: inicial && inicial.vagas != null ? String(inicial.vagas) : "", valor: inicial && inicial.valor != null ? String(inicial.valor).replace(".", ",") : "",
-    idadeMin: inicial && inicial.idadeMin != null ? String(inicial.idadeMin) : "", idadeMax: inicial && inicial.idadeMax != null ? String(inicial.idadeMax) : "" }));
+    idadeMin: inicial && inicial.idadeMin != null ? String(inicial.idadeMin) : "", idadeMax: inicial && inicial.idadeMax != null ? String(inicial.idadeMax) : "",
+    opcoes: ((inicial && inicial.opcoes) || []).map((o) => ({ ...o, valor: o.valor != null ? String(o.valor).replace(".", ",") : "" })) }));
+  const mudarOpcao = (i, k, v) => setF((x) => ({ ...x, opcoes: x.opcoes.map((o, j) => (j === i ? { ...o, [k]: v } : o)) }));
   const [enviando, setEnviando] = useState(false), [erro, setErro] = useState("");
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const inteiro = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 0 ? n : null; };
@@ -17372,9 +17383,11 @@ function FormEvento({ inicial, aoSalvar, aoCancelar }) {
     if (!f.nome.trim()) { setErro("Dê um nome ao evento."); return; }
     const idadeMin = inteiro(f.idadeMin), idadeMax = inteiro(f.idadeMax);
     if (idadeMin != null && idadeMax != null && idadeMin > idadeMax) { setErro("A idade mínima está maior que a máxima."); return; }
+    const opcoes = (f.opcoes || []).filter((o) => String(o.nome || "").trim()).map((o) => ({ id: o.id || "op-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nome: String(o.nome).trim().slice(0, 80), valor: numeroEv(o.valor) }));
+    if ((f.opcoes || []).some((o) => String(o.nome || "").trim() && String(o.valor || "").trim() && numeroEv(o.valor) == null)) { setErro("Confira o valor das opções de inscrição."); return; }
     if (f.dataFim && f.data && f.dataFim < f.data) { setErro("O último dia está antes da data de início."); return; }
     aoSalvar({ ...f, dataFim: f.dataFim && f.dataFim !== f.data ? f.dataFim : "", nome: f.nome.trim(), local: (f.local || "").trim(), descricao: (f.descricao || "").trim(), publico: (f.publico || "").trim(),
-      vagas: inteiro(f.vagas) || null, valor: numeroEv(f.valor), idadeMin, idadeMax, site: !!f.site, custos: f.custos || [] });
+      vagas: inteiro(f.vagas) || null, valor: numeroEv(f.valor), opcoes, idadeMin, idadeMax, site: !!f.site, custos: f.custos || [] });
   }
   return (
     <div data-form-evento className="mt-3">
@@ -17404,8 +17417,21 @@ function FormEvento({ inicial, aoSalvar, aoCancelar }) {
       </div>
       <div className="flex gap-2 flex-wrap">
         <Campo rotulo="Inscrições até" nota="Opcional: depois desse dia o formulário fecha sozinho"><input type="date" style={entrada} value={f.inscricoesAte || ""} onChange={(e) => set("inscricoesAte", e.target.value)} /></Campo>
-        <Campo rotulo="Valor da inscrição (R$)" nota="Só para o controle: não aparece no site"><input inputMode="decimal" style={{ ...entrada, maxWidth: 140 }} value={f.valor} onChange={(e) => set("valor", e.target.value)} placeholder="0,00" data-ev-valor /></Campo>
+        {!(f.opcoes || []).length && <Campo rotulo="Valor da inscrição (R$)" nota="Aparece no formulário para quem se inscreve"><input inputMode="decimal" style={{ ...entrada, maxWidth: 140 }} value={f.valor} onChange={(e) => set("valor", e.target.value)} placeholder="0,00" data-ev-valor /></Campo>}
       </div>
+      <Campo rotulo="Opções de inscrição" nota="Ex.: 1 semana (9 a 12/12) e 2 semanas (9 a 18/12), cada uma com o seu valor. Quem se inscreve escolhe uma e vê o valor. Sem opções, vale o valor da inscrição acima.">
+        <div data-opcoes-evento>
+          {(f.opcoes || []).map((o, i) => (
+            <div key={o.id || i} className="flex gap-2 mb-2 flex-wrap items-center" data-opcao-evento={i}>
+              <input style={{ ...entrada, flex: 2, minWidth: 160 }} value={o.nome} onChange={(e) => mudarOpcao(i, "nome", e.target.value)} placeholder="Ex.: 1 semana (9 a 12/12)" aria-label={"Nome da opção " + (i + 1)} data-opcao-nome />
+              <input inputMode="decimal" style={{ ...entrada, flex: 1, minWidth: 100 }} value={o.valor} onChange={(e) => mudarOpcao(i, "valor", e.target.value)} placeholder="Valor (R$)" aria-label={"Valor da opção " + (i + 1)} data-opcao-valor />
+              <button type="button" onClick={() => setF((x) => ({ ...x, opcoes: x.opcoes.filter((_, j) => j !== i) }))} title="Tirar a opção" aria-label={"Tirar a opção " + (i + 1)} style={iconeEstilo}>×</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setF((x) => ({ ...x, opcoes: [...(x.opcoes || []), { id: "", nome: "", valor: "" }] }))} data-mais-opcao
+            style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ Adicionar opção</button>
+        </div>
+      </Campo>
       <Campo rotulo="Cartaz" nota="Imagem do evento para o site (JPEG ou PNG)">
         <div className="flex gap-3 items-center flex-wrap">
           {f.cartaz && <img src={f.cartaz} alt="Cartaz do evento" style={{ height: 120, width: "auto", border: "1px solid " + C.linha, borderRadius: 6 }} />}
@@ -17437,7 +17463,7 @@ function InscricaoEventoCartao({ ev, c, aoMudar, aoRemover }) {
         <div style={{ minWidth: 0 }}>
           <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{c.criancaNome || c.nomeContato}{idade != null ? " · " + idade + " anos" : ""}</p>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-            {c.criancaNome ? "Responsável: " + c.nomeContato + " · " : ""}{c.telefoneContato}{c.email ? " · " + c.email : ""}
+            {c.opcaoNome ? <b style={{ color: C.tinta }}>{c.opcaoNome}{valorInscricaoEv(ev, c) != null ? " · " + reaisEv(valorInscricaoEv(ev, c)) : ""} · </b> : null}{c.criancaNome ? "Responsável: " + c.nomeContato + " · " : ""}{c.telefoneContato}{c.email ? " · " + c.email : ""}
             {c.jaAluno === "sim" ? " · já é aluno" : c.jaAluno === "nao" ? " · ainda não é aluno" : ""}{c.origem === "cliente" ? " · pelo site" : ""}
           </p>
           {c.observacoes && <p style={{ ...prosa, fontSize: 12.5, marginTop: 2 }}><b>Observações:</b> {c.observacoes}</p>}
@@ -17458,7 +17484,7 @@ function InscricaoEventoCartao({ ev, c, aoMudar, aoRemover }) {
         </label>
         {pg.status === "pago" && <>
           <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Valor (R$)
-            <input inputMode="decimal" defaultValue={pg.valor != null ? String(pg.valor).replace(".", ",") : ev.valor != null ? String(ev.valor).replace(".", ",") : ""} onBlur={(e) => mudarPg({ valor: numeroEv(e.target.value) })} style={{ ...entrada, display: "block", width: 100, padding: "6px 8px" }} data-pagamento-valor />
+            <input inputMode="decimal" defaultValue={pg.valor != null ? String(pg.valor).replace(".", ",") : valorInscricaoEv(ev, c) != null ? String(valorInscricaoEv(ev, c)).replace(".", ",") : ""} onBlur={(e) => mudarPg({ valor: numeroEv(e.target.value) })} style={{ ...entrada, display: "block", width: 100, padding: "6px 8px" }} data-pagamento-valor />
           </label>
           <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Data
             <input type="date" value={pg.data || ""} onChange={(e) => mudarPg({ data: e.target.value })} style={{ ...entrada, display: "block", padding: "6px 8px" }} />
@@ -17483,6 +17509,7 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
   const [nomeConvidado, setNomeConvidado] = useState("");
   const [telefoneConvidado, setTelefoneConvidado] = useState("");
   const [criancaConvidado, setCriancaConvidado] = useState("");
+  const [opcaoConvidado, setOpcaoConvidado] = useState("");
   const [custoDesc, setCustoDesc] = useState(""), [custoValor, setCustoValor] = useState("");
   const [baixando, setBaixando] = useState(false), [erroPlanilha, setErroPlanilha] = useState("");
 
@@ -17520,7 +17547,9 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
     function adicionarConvidado() {
       if (!nomeConvidado.trim() || !telefoneConvidado.trim()) return;
       const status = aberto.vagas != null && vagasRestantes <= 0 ? "espera" : "confirmado";
-      const novo = { ...novaInscricaoEvento(), nomeContato: nomeConvidado.trim(), telefoneContato: telefoneConvidado.trim(), criancaNome: criancaConvidado.trim(), status, pagamento: { status: "pendente" } };
+      const op = (aberto.opcoes || []).find((o) => o.id === opcaoConvidado);
+      const novo = { ...novaInscricaoEvento(), nomeContato: nomeConvidado.trim(), telefoneContato: telefoneConvidado.trim(), criancaNome: criancaConvidado.trim(), status, pagamento: { status: "pendente" },
+        ...(op ? { opcaoId: op.id, opcaoNome: op.nome, valor: op.valor ?? null } : {}) };
       mudarEvento(aberto.id, (e) => ({ ...e, convidados: [...e.convidados, novo] }));
       setNomeConvidado(""); setTelefoneConvidado(""); setCriancaConvidado("");
     }
@@ -17551,7 +17580,8 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
               {aberto.data ? formatarDataLonga(aberto.data) + (aberto.dataFim ? " a " + formatarDataLonga(aberto.dataFim) : "") : "Sem data"}{aberto.horaInicio ? " · " + aberto.horaInicio + (aberto.horaFim ? "–" + aberto.horaFim : "") : ""}{aberto.local ? " · " + aberto.local : ""}
             </p>
             <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
-              {[aberto.publico, aberto.vagas != null ? r.confirmados + "/" + aberto.vagas + " vagas preenchidas" : "vagas sem limite", r.valor != null ? "inscrição " + reaisEv(r.valor) : "sem valor definido", aberto.inscricoesAte ? "inscrições até " + aberto.inscricoesAte.split("-").reverse().join("/") : ""].filter(Boolean).join(" · ")}
+              {[aberto.publico, aberto.vagas != null ? r.confirmados + "/" + aberto.vagas + " vagas preenchidas" : "vagas sem limite",
+                (aberto.opcoes || []).length ? aberto.opcoes.map((o) => o.nome + (o.valor != null ? " " + reaisEv(o.valor) : "")).join(" · ") : r.valor != null ? "inscrição " + reaisEv(r.valor) : "sem valor definido", aberto.inscricoesAte ? "inscrições até " + aberto.inscricoesAte.split("-").reverse().join("/") : ""].filter(Boolean).join(" · ")}
             </p>
           </div>
         </div>
@@ -17573,6 +17603,7 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
           {caixa("Resultado até agora", reaisEv(r.resultado), r.resultado < 0 ? "#B3261E" : C.quadra, "resultado")}
           {caixa("Resultado previsto", reaisEv(r.previsto), r.previsto < 0 ? "#B3261E" : null, "previsto")}
         </div>
+        {r.porOpcao.length > 0 && <p data-resumo-opcoes style={{ ...prosa, fontSize: 13, marginBottom: 4 }}>{r.porOpcao.map((o) => o.nome + ": " + o.inscritos + (o.inscritos === 1 ? " inscrição" : " inscrições") + " (" + o.pagos + (o.pagos === 1 ? " paga" : " pagas") + ")").join(" · ")}</p>}
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>O app não cobra: combine o pagamento pelo WhatsApp e marque aqui. "Previsto" conta que todas as confirmadas em aberto paguem o valor da inscrição.</p>
 
         <div className="flex items-center justify-between gap-2 flex-wrap" style={{ margin: "8px 0" }}>
@@ -17594,7 +17625,12 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
           <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={criancaConvidado} onChange={(e) => setCriancaConvidado(e.target.value)} placeholder="Criança (opcional)" />
           <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={nomeConvidado} onChange={(e) => setNomeConvidado(e.target.value)} placeholder="Responsável" />
           <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={telefoneConvidado} onChange={(e) => setTelefoneConvidado(e.target.value)} placeholder="WhatsApp" />
-          <Botao pequeno onClick={adicionarConvidado} disabled={!nomeConvidado.trim() || !telefoneConvidado.trim()}>+ Adicionar inscrição</Botao>
+          {(aberto.opcoes || []).length > 0 && (
+            <select style={{ ...entrada, flex: 1, minWidth: 140 }} value={opcaoConvidado} onChange={(e) => setOpcaoConvidado(e.target.value)} aria-label="Opção de inscrição">
+              <option value="">Opção…</option>{aberto.opcoes.map((o) => <option key={o.id} value={o.id}>{o.nome}{o.valor != null ? " · " + reaisEv(o.valor) : ""}</option>)}
+            </select>
+          )}
+          <Botao pequeno onClick={adicionarConvidado} disabled={!nomeConvidado.trim() || !telefoneConvidado.trim() || ((aberto.opcoes || []).length > 0 && !opcaoConvidado)}>+ Adicionar inscrição</Botao>
         </div>
 
         <p style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Custos do evento</p>
@@ -25129,7 +25165,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-eventos-site";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-eventos-opcoes";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -25138,7 +25174,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Eventos no site, com inscrição e controle de pagamentos", d: "Em Gestão › Eventos, o evento ganhou cartaz, para quem é (com a faixa de idade), inscrições até, valor da inscrição e a opção Mostrar no site. Marcado, ele aparece na página principal do teamyoda.com.br com o formulário: responsável, WhatsApp, e-mail e, em evento de criança, nome e nascimento da criança (a idade é conferida), se já é aluno, observações e a autorização do responsável. Cada inscrição chega no evento e no celular da coordenação. No evento: WhatsApp com a mensagem pronta, pagamento de cada inscrição (em aberto, pago ou isento, com valor, data e forma), custos, resumo (recebido, em aberto, custos e resultado) e a planilha em Excel. O app não cobra: o pagamento é combinado por fora.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
+  { novo: true, t: "Eventos: opções de inscrição com valor, período de vários dias e destaque no topo do site", d: "Na criação do evento, em Opções de inscrição, cadastre por exemplo 1 semana e 2 semanas, cada uma com o seu valor: quem se inscreve no site escolhe uma e vê o valor ali mesmo (sem opções, aparece o valor único da inscrição). O evento também tem o Último dia, para os que duram vários dias (o site mostra o período, como 9 a 18 de dezembro), e aparece logo no topo da página de entrada. No painel, cada inscrição mostra a opção escolhida, e o resumo, o em aberto, a mensagem do WhatsApp e a planilha usam o valor de cada opção.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
+  { t: "Eventos no site, com inscrição e controle de pagamentos", d: "Em Gestão › Eventos, o evento ganhou cartaz, para quem é (com a faixa de idade), inscrições até, valor da inscrição e a opção Mostrar no site. Marcado, ele aparece na página principal do teamyoda.com.br com o formulário: responsável, WhatsApp, e-mail e, em evento de criança, nome e nascimento da criança (a idade é conferida), se já é aluno, observações e a autorização do responsável. Cada inscrição chega no evento e no celular da coordenação. No evento: WhatsApp com a mensagem pronta, pagamento de cada inscrição (em aberto, pago ou isento, com valor, data e forma), custos, resumo (recebido, em aberto, custos e resultado) e a planilha em Excel. O app não cobra: o pagamento é combinado por fora.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
   { t: "Gestão da academia em painel próprio", d: "As telas de gestão saíram do app dos professores e foram para o painel teamyoda.com.br/gestao: quadras, horários recorrentes, clientes, torneios, eventos, aulas da equipe, relatório de aulas de toda a equipe, padrão de atendimento, financeiro e cobrança e a equipe da organização (contas e pedidos de cadastro). Quem usa é a coordenação e o administrativo, com a mesma conta e os mesmos dados; o Richard e o administrativo também abrem pela Central. No app continuam Hoje, Jogadores, Agenda (com as reposições e o relatório de aulas de cada professor), Pendências, turmas, alto rendimento, planejamentos e o método.", onde: "teamyoda.com.br/gestao", aba: "gestao-inicio" },
   { t: "Sessão do dia igual para todos os treinadores", d: "Quando um treinador gera ou muda a sessão do dia (individual, de turma ou do alto rendimento), quem está com a mesma sessão aberta passa a ver a mudança na hora, com o aviso de quem mudou, e a edição de um não apaga mais a do outro. No alto rendimento, quem abre a sessão da turma depois entra na sessão que já foi montada, em vez de montar outra. E o atleta com o plano gerado e ainda sem aprovar aparece como Plano montado, falta aprovar, com o botão Usar o plano ali mesmo (antes a sessão não montava e não dizia por quê).", onde: "Jogadores › Sessão de hoje · Turmas › Sessão · Grupos › Alto rendimento › Sessão da turma", aba: "equipes" },
   { t: "Cadastro rápido e Área do aluno com e-mail, sem link", d: "Em Jogadores, o Cadastro rápido cadastra o aluno só com o nome, sem aula nem planejamento (nascimento, e-mail e professor são opcionais); ele fica no grupo Só cadastro e, quando começar a treinar, é só tocar em Completar cadastro. Na ficha de cada aluno, o cartão Área do aluno guarda até 2 e-mails (aluno e responsável): toque em Enviar convite e a pessoa recebe um e-mail para criar a senha. Depois ela entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios sem precisar de link. Para tirar o acesso, apague o e-mail. O link do aluno continua funcionando como antes.", onde: "Jogadores › Cadastro rápido · Jogadores › abra o jogador › Perfil", aba: "alunos" },

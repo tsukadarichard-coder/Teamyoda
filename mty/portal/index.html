@@ -206,6 +206,13 @@
   .campo textarea { min-height: 90px; resize: vertical; }
   .opcoes-sn { display: flex; gap: 18px; margin-top: 8px; font-weight: 500; }
   .opcoes-sn label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .opcoes-insc { display: grid; gap: 8px; }
+  .opcoes-insc label { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid #BDBAB4; border-radius: 4px; background: #fff; cursor: pointer; font-weight: 600; }
+  .opcoes-insc label:has(input:checked) { border-color: var(--verm); box-shadow: 0 0 0 1px var(--verm); }
+  .opcoes-insc input { width: 20px; height: 20px; flex: none; }
+  .opcoes-insc .preco { margin-left: auto; font-family: var(--titulo); font-weight: 800; white-space: nowrap; }
+  .valor-unico { font-weight: 600; margin: 0 0 14px; }
+  .valor-unico b { font-family: var(--titulo); font-size: 20px; }
   .autoriza { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; color: var(--grafite); margin: 6px 0 14px; cursor: pointer; }
   .autoriza input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
   @media (min-width: 900px) { .evento.com-cartaz { grid-template-columns: 380px 1fr; gap: 36px; padding: 28px; align-items: start; } .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; } }
@@ -547,6 +554,7 @@
       return a.toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) + " a " + b.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
     } catch (e) { return dataBR(d1) + " a " + dataBR(d2); }
   }
+  function reais(v) { return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function idadeEm(nasc, ref) {
     var a = nasc.split("-").map(Number), b = (ref || new Date().toISOString().slice(0, 10)).split("-").map(Number);
     return b[0] - a[0] - (b[1] < a[1] || (b[1] === a[1] && b[2] < a[2]) ? 1 : 0);
@@ -564,6 +572,10 @@
       (e.inscricoesAte ? '<p class="vagas">Inscrições até ' + escH(dataBR(e.inscricoesAte)) + ".</p>" : "") +
       '<div class="acoes" style="margin-top:18px"><button class="btn btn-verm" type="button" data-inscrever="' + id + '" aria-expanded="false" aria-controls="f-' + id + '">' + (cheio ? "Entrar na lista de espera" : "Inscrever") + "</button></div>" +
       '<form id="f-' + id + '" data-form-evento="' + id + '" novalidate hidden>' +
+      /* opções de inscrição (1 semana, 2 semanas…) com o valor de cada uma; sem opções, o valor único do evento */
+      ((e.opcoes || []).length ? '<fieldset data-opcoes-inscricao><legend>Escolha a inscrição</legend><div class="opcoes-insc">' + e.opcoes.map(function (o) {
+        return '<label><input type="radio" name="opcaoId" value="' + escH(o.id) + '"' + (e.opcoes.length === 1 ? " checked" : "") + '> <span>' + escH(o.nome) + "</span>" + (o.valor != null ? '<span class="preco">' + escH(reais(o.valor)) + "</span>" : "") + "</label>";
+      }).join("") + "</div></fieldset>" : e.valor != null ? '<p class="valor-unico" data-valor-inscricao>Valor da inscrição: <b>' + escH(reais(e.valor)) + "</b></p>" : "") +
       '<fieldset><legend>Responsável</legend>' +
       '<label class="campo">Nome do responsável<input name="nomeContato" autocomplete="name" maxlength="80" required></label>' +
       '<div class="duas"><label class="campo">WhatsApp<input name="telefoneContato" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="(11) 99999-9999" required></label>' +
@@ -601,6 +613,11 @@
         var idade = idadeEm(d.criancaNascimento, e.data);
         if ((e.idadeMin != null && idade < e.idadeMin) || (e.idadeMax != null && idade > e.idadeMax)) { marca(f.criancaNascimento, true); return msg("erro", "Este evento é para crianças de " + e.idadeMin + " a " + e.idadeMax + " anos. Na data do evento a criança terá " + idade + "."); }
         if (!d.autorizacao) return msg("erro", "Marque a autorização do responsável para enviar.");
+      }
+      if ((e.opcoes || []).length) {
+        var op = f.querySelector('input[name="opcaoId"]:checked');
+        if (!op) return msg("erro", "Escolha uma das opções de inscrição.");
+        d.opcaoId = op.value;
       }
       var b = f.querySelector('button[type="submit"]'); b.disabled = true; msg("ok", "Enviando…");
       fetch(API_EV, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(d) })

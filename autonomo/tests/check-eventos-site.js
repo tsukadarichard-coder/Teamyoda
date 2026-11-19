@@ -23,6 +23,7 @@ const ano = new Date().getFullYear(), dataEv = ano + "-12-13", ontem = new Date(
 store["orgs/team-yoda/dados/mty:eventos:v1"] = { value: JSON.stringify([
   { id: "ev1", nome: "Camp de fim de ano", data: dataEv, horaInicio: "09:00", local: "Cooper Tênis", tipo: "clinica", descricao: "Tênis e brincadeiras", vagas: 2, ativo: true, site: true,
     publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, valor: 150, cartaz: "/x.jpg", custos: [{ id: "c", descricao: "Camisetas", valor: 300 }],
+    opcoes: [{ id: "s1", nome: "1 semana", valor: 450 }, { id: "s2", nome: "2 semanas", valor: 800 }],
     convidados: [{ id: "i0", nomeContato: "Já Inscrito", telefoneContato: "11 90000-0000", status: "confirmado" }] },
   { id: "ev2", nome: "Encerrado", data: dataEv, ativo: true, site: true, inscricoesAte: ontem, convidados: [] },
   { id: "ev3", nome: "Social adulto", data: dataEv, ativo: true, convidados: [] },
@@ -37,7 +38,9 @@ const nasc = (idade) => (ano - idade) + "-06-01";
   const e1 = r.corpo.eventos[0];
   assert.deepStrictEqual([e1.site, e1.publico, e1.idadeMin, e1.idadeMax, e1.cartaz, e1.confirmados, e1.vagas], [true, "Crianças de 8 a 12 anos", 8, 12, "/x.jpg", 1, 2]);
   const txtGet = JSON.stringify(r.corpo);
-  assert(!/Já Inscrito|90000|150|Camisetas|valor|custos/.test(txtGet), "GET sem dados pessoais, valor nem custos: " + txtGet);
+  assert(!/Já Inscrito|90000|Camisetas|custos/.test(txtGet), "GET sem dados pessoais nem custos: " + txtGet);
+  /* opções e valor aparecem para quem se inscreve (pedido de 19/11/2026) */
+  assert.deepStrictEqual(e1.opcoes, [{ id: "s1", nome: "1 semana", valor: 450 }, { id: "s2", nome: "2 semanas", valor: 800 }]);
 
   /* POST: validações do evento de criança */
   const base = { org: "team-yoda", tipo: "evento", eventoId: "ev1", nomeContato: "Maria Souza", telefoneContato: "(11) 98888-7777", email: "maria@exemplo.com", jaAluno: "sim", observacoes: "Alergia a amendoim" };
@@ -47,15 +50,19 @@ const nasc = (idade) => (ano - idade) + "-06-01";
   assert.strictEqual(r.status, 400); assert(/8 a 12 anos/.test(r.corpo.erro), r.corpo.erro);
   assert.strictEqual((await chamar("POST", { ...base, email: "errado", criancaNome: "Lia", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "e-mail ruim");
   r = await chamar("POST", { ...base, criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true });
+  assert.strictEqual(r.status, 400, "sem escolher a opção"); assert(/opções de inscrição/.test(r.corpo.erro));
+  assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s9", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "opção que não existe");
+  r = await chamar("POST", { ...base, opcaoId: "s2", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true });
   assert.deepStrictEqual([r.status, r.corpo.status], [200, "confirmado"]);
   let ev = JSON.parse(store["orgs/team-yoda/dados/mty:eventos:v1"].value)[0], c = ev.convidados[1];
   assert.deepStrictEqual([c.criancaNome, c.criancaNascimento, c.email, c.jaAluno, c.observacoes, c.status, c.origem, c.vistoPeloStaff, c.pagamento.status],
     ["Lia Souza", nasc(10), "maria@exemplo.com", "sim", "Alergia a amendoim", "confirmado", "cliente", false, "pendente"]);
   assert(c.autorizacaoEm && c.criancaIdade >= 9 && c.criancaIdade <= 10, "autorização com data e idade no evento");
+  assert.deepStrictEqual([c.opcaoId, c.opcaoNome, c.valor], ["s2", "2 semanas", 800], "opção e valor guardados");
   assert.strictEqual(avisos.length, 1); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
   assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/gestao?aba=eventos");
   /* lotou: a próxima vai para a lista de espera */
-  r = await chamar("POST", { ...base, nomeContato: "João", criancaNome: "Theo", criancaNascimento: nasc(12), autorizacao: true });
+  r = await chamar("POST", { ...base, nomeContato: "João", opcaoId: "s1", criancaNome: "Theo", criancaNascimento: nasc(12), autorizacao: true });
   assert.deepStrictEqual([r.status, r.corpo.status], [200, "espera"]);
   assert(/lista de espera/.test(avisos[1].aviso.corpo));
   /* prazo vencido e evento sem faixa de idade (adulto) */

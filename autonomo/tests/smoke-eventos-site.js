@@ -21,7 +21,8 @@ const ano = new Date().getFullYear(), dataEv = ano + "-12-13";
 const CHAVE = "orgs/team-yoda/dados/mty:eventos:v1";
 store[CHAVE] = { value: JSON.stringify([
   { id: "ev1", nome: "Camp de Fim de Ano Team Yoda", data: dataEv, dataFim: ano + "-12-18", horaInicio: "09:00", horaFim: "12:00", local: "Cooper Tênis", tipo: "clinica", vagas: 20, ativo: true, site: true,
-    descricao: "Uma manhã de tênis, jogos e brincadeiras.\nLeve garrafinha e protetor solar.", publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, valor: 180, cartaz: "/assets/foto-forehand.jpg", convidados: [] },
+    descricao: "Uma manhã de tênis, jogos e brincadeiras.\nLeve garrafinha e protetor solar.", publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, cartaz: "/assets/foto-forehand.jpg", convidados: [],
+    opcoes: [{ id: "s1", nome: "1 semana (13 a 16/12)", valor: 450 }, { id: "s2", nome: "2 semanas (13 a 18/12)", valor: 800 }] },
   { id: "ev2", nome: "Noite social (só no app)", data: dataEv, ativo: true, convidados: [] },
 ]) };
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".json": "application/json" };
@@ -68,12 +69,14 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   assert(await p.evaluate(() => { const e = document.getElementById("eventos"), a = document.getElementById("inicio"); return !!(e.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) && e.getBoundingClientRect().top < 200; }), "eventos no topo, antes da abertura");
   const t = await p.innerText("#eventos");
   assert(/Camp de Fim de Ano Team Yoda/.test(t) && /Crianças de 8 a 12 anos/.test(t) && /Cooper Tênis/.test(t) && /09:00 às 12:00/.test(t) && /13 a 18 de dezembro/.test(t), t);
-  assert(!/R\$/.test(await p.content()) && !/R\$|180/.test(t), "nenhum valor na página");
+  assert(!/R\$/.test(t), "o valor não fica no cartão: aparece no formulário de quem se inscreve");
   assert(await p.isVisible('#menuBt') && (await p.locator("[data-link-eventos]").first().getAttribute("hidden")) === null, "link Eventos no menu");
   const sem = await p.evaluate(() => document.documentElement.scrollWidth); assert(sem <= 390, "sem rolagem lateral: " + sem);
   if (capturas) { await p.locator("#eventos").screenshot({ path: path.join(capturas, "site-eventos.png") }); await p.screenshot({ path: path.join(capturas, "site-topo.png") }); }
   await p.click('[data-inscrever="ev1"]');
   const form = p.locator('[data-form-evento="ev1"]');
+  const ops = await form.locator("[data-opcoes-inscricao]").innerText();
+  assert(/1 semana \(13 a 16\/12\)\s*R\$\s?450,00/.test(ops) && /2 semanas \(13 a 18\/12\)\s*R\$\s?800,00/.test(ops), "opções com o valor no formulário: " + ops);
   await form.locator('[name="nomeContato"]').fill("Maria Souza");
   await form.locator('[name="telefoneContato"]').fill("(11) 98888-7777");
   await form.locator('[name="email"]').fill("maria@exemplo.com");
@@ -87,18 +90,22 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await form.locator('button[type="submit"]').click();
   assert(/autorização/.test(await form.locator(".msg").innerText()), "pede a autorização");
   await form.locator('[name="autorizacao"]').check();
+  await form.locator('button[type="submit"]').click();
+  assert(/Escolha uma das opções/.test(await form.locator(".msg").innerText()), "pede a opção");
+  await form.locator('input[name="opcaoId"][value="s2"]').check();
   if (capturas) await p.locator('[data-evento="ev1"]').screenshot({ path: path.join(capturas, "site-form.png") });
   await form.locator('button[type="submit"]').click();
   await p.waitForSelector("[data-inscricao-ok]");
   assert(/Vamos falar com você pelo WhatsApp/.test(await p.innerText("[data-inscricao-ok]")));
   const ev1 = JSON.parse(store[CHAVE].value)[0], insc = ev1.convidados[0];
   assert.deepStrictEqual([insc.nomeContato, insc.criancaNome, insc.jaAluno, insc.observacoes, insc.email, insc.status, insc.pagamento.status], ["Maria Souza", "Lia Souza", "nao", "Alergia a amendoim", "maria@exemplo.com", "confirmado", "pendente"]);
+  assert.deepStrictEqual([insc.opcaoNome, insc.valor], ["2 semanas (13 a 18/12)", 800]);
   await ctx.close();
 
   /* ── B · painel ── */
   const evPainel = JSON.parse(store[CHAVE].value)[0];
-  evPainel.convidados.push({ id: "i2", nomeContato: "João Lima", telefoneContato: "11 97777-6666", criancaNome: "Theo Lima", criancaNascimento: (ano - 11) + "-01-20", status: "confirmado", origem: "cliente", vistoPeloStaff: false, pagamento: { status: "pendente" } },
-    { id: "i3", nomeContato: "Ana Reis", telefoneContato: "11 96666-5555", criancaNome: "Bia Reis", criancaNascimento: (ano - 9) + "-05-05", status: "espera", origem: "cliente", vistoPeloStaff: false, pagamento: { status: "pendente" } });
+  evPainel.convidados.push({ id: "i2", nomeContato: "João Lima", telefoneContato: "11 97777-6666", criancaNome: "Theo Lima", criancaNascimento: (ano - 11) + "-01-20", status: "confirmado", origem: "cliente", vistoPeloStaff: false, pagamento: { status: "pendente" }, opcaoId: "s1", opcaoNome: "1 semana (13 a 16/12)", valor: 450 },
+    { id: "i3", nomeContato: "Ana Reis", telefoneContato: "11 96666-5555", criancaNome: "Bia Reis", criancaNascimento: (ano - 9) + "-05-05", status: "espera", origem: "cliente", vistoPeloStaff: false, pagamento: { status: "pendente" }, opcaoId: "s1", opcaoNome: "1 semana (13 a 16/12)", valor: 450 });
   const ctx2 = await b.newContext({ viewport: { width: 1000, height: 1000 }, acceptDownloads: true });
   await ctx2.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx/, (rota) => rota.fulfill({ contentType: "text/javascript", body: fs.readFileSync(XLSX_JS) }));
   await ctx2.route(/tailwindcss/, (rota) => rota.fulfill({ contentType: "text/javascript", body: "" }));
@@ -112,7 +119,8 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await q.waitForSelector("[data-resumo-financeiro]");
   await q.waitForFunction(() => window.__eventos[0].convidados.every((c) => c.vistoPeloStaff !== false));
   const caixa = (k) => q.innerText('[data-resumo-evento="' + k + '"]');
-  assert(/3 \(1 na espera\)/.test(await caixa("inscritos")) && /2 · R\$\s?360,00/.test(await caixa("aberto")) && /R\$\s?0,00/.test(await caixa("recebido")), await q.innerText("[data-resumo-financeiro]"));
+  assert(/3 \(1 na espera\)/.test(await caixa("inscritos")) && /2 · R\$\s?1\.250,00/.test(await caixa("aberto")) && /R\$\s?0,00/.test(await caixa("recebido")), await q.innerText("[data-resumo-financeiro]"));
+  assert(/1 semana \(13 a 16\/12\): 2 inscrições \(0 pagas\) · 2 semanas \(13 a 18\/12\): 1 inscrição \(0 pagas\)/.test(await q.innerText("[data-resumo-opcoes]")), await q.innerText("[data-resumo-opcoes]"));
   /* Maria pagou (Pix), Theo fica em aberto; custo das camisetas */
   const maria = q.locator('[data-inscricao-evento="' + insc.id + '"]');
   await maria.locator("[data-pagamento-status]").selectOption("pago");
@@ -120,14 +128,14 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await q.fill("[data-custo-desc]", "Camisetas"); await q.fill("[data-custo-valor]", "120,50");
   await q.getByRole("button", { name: "+ Adicionar custo" }).click();
   await q.waitForFunction(() => (window.__eventos[0].custos || []).length === 1);
-  assert(/R\$\s?180,00/.test(await caixa("recebido")) && /1 · R\$\s?180,00/.test(await caixa("aberto")) && /R\$\s?120,50/.test(await caixa("custos")) && /R\$\s?59,50/.test(await caixa("resultado")) && /R\$\s?239,50/.test(await caixa("previsto")), await q.innerText("[data-resumo-financeiro]"));
+  assert(/R\$\s?800,00/.test(await caixa("recebido")) && /1 · R\$\s?450,00/.test(await caixa("aberto")) && /R\$\s?120,50/.test(await caixa("custos")) && /R\$\s?679,50/.test(await caixa("resultado")) && /R\$\s?1\.129,50/.test(await caixa("previsto")), await q.innerText("[data-resumo-financeiro]"));
   const pg = (await q.evaluate((id) => window.__eventos[0].convidados.find((c) => c.id === id).pagamento, insc.id));
   assert.deepStrictEqual([pg.status, pg.forma, !!pg.data], ["pago", "Pix", true]);
   /* filtro e WhatsApp */
   await q.click('[data-filtro-inscricoes="aberto"]');
   assert.deepStrictEqual(await q.locator("[data-inscricao-evento]").evaluateAll((l) => l.map((x) => x.getAttribute("data-inscricao-evento"))), ["i2"]);
   const zap = decodeURIComponent(await q.getAttribute('[data-inscricao-evento="i2"] [data-zap-inscricao]', "href"));
-  assert(/5511977776666/.test(zap) && /Theo Lima/.test(zap) && /R\$\s?180,00/.test(zap), zap);
+  assert(/5511977776666/.test(zap) && /Theo Lima/.test(zap) && /1 semana/.test(zap) && /R\$\s?450,00/.test(zap), zap);
   if (capturas) { await q.click('[data-filtro-inscricoes="todas"]'); await q.screenshot({ path: path.join(capturas, "painel-evento.png"), fullPage: true }); }
   /* planilha */
   const [dl] = await Promise.all([q.waitForEvent("download"), q.getByRole("button", { name: "Baixar planilha (Excel)" }).click()]);
@@ -138,9 +146,9 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   const linhas = X.utils.sheet_to_json(wb.Sheets["Inscrições"]);
   assert.strictEqual(linhas.length, 3);
   const lia = linhas.find((l) => l["Criança"] === "Lia Souza");
-  assert.deepStrictEqual([lia["Pagamento"], lia["Valor pago (R$)"], lia["Forma"], lia["Observações"], lia["Já é aluno"]], ["Pago", 180, "Pix", "Alergia a amendoim", "Não"]);
+  assert.deepStrictEqual([lia["Opção"], lia["Pagamento"], lia["Valor pago (R$)"], lia["Forma"], lia["Observações"], lia["Já é aluno"]], ["2 semanas (13 a 18/12)", "Pago", 800, "Pix", "Alergia a amendoim", "Não"]);
   const resumo = Object.fromEntries(X.utils.sheet_to_json(wb.Sheets["Resumo"], { header: 1 }));
-  assert.deepStrictEqual([resumo["Recebido (R$)"], resumo["Custos (R$)"], resumo["Resultado até agora (R$)"], resumo["Em aberto"]], [180, 120.5, 59.5, 1]);
+  assert.deepStrictEqual([resumo["Recebido (R$)"], resumo["Custos (R$)"], resumo["Resultado até agora (R$)"], resumo["Em aberto"]], [800, 120.5, 679.5, 1]);
   assert.deepStrictEqual(erros, [], "erros: " + erros.join(" | "));
   console.log("smoke-eventos-site: ok");
   await b.close(); srvSite.close(); srvPainel.close();
