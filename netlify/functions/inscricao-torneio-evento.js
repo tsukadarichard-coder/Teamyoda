@@ -19,7 +19,10 @@
      responsável (com data); evento com faixa de idade confere a idade na data do evento; "inscrições até" fecha sozinho;
    · cada inscrição nova avisa no celular a coordenação (app do treinador) e aparece no sino do app;
    · o cartaz é uma imagem enviada pela gestão (POST acao "imagem", com a conta da academia) e servida por GET ?img=.
-   Pagamento: o app não cobra nada; a gestão marca à mão (pendente, pago, isento) dentro do app. */
+   Pagamento: o app não cobra nada; a gestão marca à mão (pendente, pago, isento) dentro do app.
+   Opções de inscrição com valor (pedido do Richard em 19/11/2026, "1 semana ou 2 semanas... valor que deve aparecer para quem se
+   inscreve"): `opcoes` [{id, nome, valor}] no evento; quem se inscreve escolhe uma (obrigatório quando há opções) e vê o valor no
+   formulário; sem opções, vale o `valor` do evento. A inscrição guarda `opcaoId`, `opcaoNome` e `valor`. */
 const P = require("./_push");
 const { admin, app } = require("./_firebase-admin");
 
@@ -90,7 +93,9 @@ async function handleGet(event) {
       id: e.id, nome: e.nome, data: e.data, horaInicio: e.horaInicio, horaFim: e.horaFim,
       local: e.local, tipo: e.tipo, descricao: e.descricao, vagas: e.vagas ?? null,
       confirmados: (e.convidados || []).filter((c) => c.status === "confirmado").length,
-      /* site do Team Yoda: só o que é público (nunca nomes, telefones nem valores) */
+      /* site do Team Yoda: só o que é público (nunca nomes nem telefones); o valor e as opções aparecem no formulário de inscrição */
+      opcoes: (Array.isArray(e.opcoes) ? e.opcoes : []).filter((o) => o && o.id && o.nome).map((o) => ({ id: o.id, nome: o.nome, valor: o.valor ?? null })),
+      valor: e.valor ?? null,
       site: e.site === true, publico: e.publico || "", idadeMin: e.idadeMin ?? null, idadeMax: e.idadeMax ?? null,
       inscricoesAte: e.inscricoesAte || "", cartaz: e.cartaz || "", dataFim: e.dataFim || "",
     }));
@@ -156,7 +161,7 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
     if (!evento || evento.ativo === false || (evento.inscricoesAte && evento.inscricoesAte < hojeSP())) {
       throw new ErroPublico(404, "Esse evento não está mais com inscrições abertas — atualize a página.");
     }
-    const extra = camposDaCrianca(evento, body);
+    const extra = { ...camposDaCrianca(evento, body), ...opcaoEscolhida(evento, body) };
     const confirmados = (evento.convidados || []).filter((c) => c.status === "confirmado").length;
     const status = evento.vagas != null && confirmados >= evento.vagas ? "espera" : "confirmado";
 
@@ -177,6 +182,15 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
     url: "/gestao?aba=eventos", tag: "evento-" + eventoId,
   });
   return resposta(200, { ok: true, eventoNome: resultado.eventoNome, status: resultado.status });
+}
+
+/* opção de inscrição (1 semana, 2 semanas…): obrigatória quando o evento tem opções; guarda o nome e o valor dela */
+function opcaoEscolhida(evento, body) {
+  const opcoes = (Array.isArray(evento.opcoes) ? evento.opcoes : []).filter((o) => o && o.id);
+  if (!opcoes.length) return evento.valor != null ? { valor: evento.valor } : {};
+  const o = opcoes.find((x) => x.id === String(body.opcaoId || ""));
+  if (!o) throw new ErroPublico(400, "Escolha uma das opções de inscrição.");
+  return { opcaoId: o.id, opcaoNome: String(o.nome || "").slice(0, 80), valor: o.valor ?? null };
 }
 
 /* evento com faixa de idade (ex.: crianças de 8 a 12 anos): dados da criança e autorização do responsável */
