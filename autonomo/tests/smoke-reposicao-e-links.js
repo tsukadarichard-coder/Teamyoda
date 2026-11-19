@@ -6,7 +6,7 @@
 const fs = require("fs"), path = require("path"), http = require("http");
 const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const AGENDA_AULAS_JS=require("fs").readFileSync(require("path").join(__dirname,"../agenda-aulas.js"),"utf8");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const assert = require("assert");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-reposicao-e-links: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
@@ -44,7 +44,7 @@ const hoje = new Date(Date.now() - 3 * 3600 * 1000), amanha = new Date(hoje.getT
 const plano = (t) => ({ aprovado: true, tipo: "Ciclo de construção", prioridade: "Construção de ponto", blocos: [{ nome: "Bloco 1", titulo: "Bloco 1", semanasLista: [{ n: 1, foco: "Construção", aulas: [{ t: t + " 1", ex: [] }, { t: t + " 2", ex: [] }] }] }], observacao: [] });
 
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   async function abrir(srv, esperar) {
     const p = await b.newPage({ viewport: { width: 430, height: 1300 } });
     await p.route(/tailwindcss/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));

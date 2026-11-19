@@ -21496,7 +21496,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
    forma de produzir a mesma coisa, exatamente o que a unificação quer
    evitar. Por isso, ao escolher um desses dois tipos, o modal fecha e
    leva direto pra tela certa, em vez de reimplementar o fluxo. */
-function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes, alvoInicial, repoeInicial }) {
+function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes, podeGestao = true, alvoInicial, repoeInicial }) {
   const [tipo, setTipo] = useState(tipoInicial || null); // null | "individual" | "turma" | "locacao" | "reposicao"
   const [repoPara, setRepoPara] = useState("individual"); // reposição: "individual" | "turma"
   const [alunoId, setAlunoId] = useState("");
@@ -21662,7 +21662,7 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           {!tipo ? (
             <div className="flex flex-col gap-2">
               {[{ v: "individual", r: "Aula individual" }, { v: "turma", r: "Aula de turma" },
-                { v: "locacao", r: "Locação" }, { v: "reposicao", r: "Reposição" }, { v: "bloqueio", r: "Bloqueio" }].map((t) => (
+                { v: "locacao", r: "Locação" }, { v: "reposicao", r: "Reposição" }, { v: "bloqueio", r: "Bloqueio" }].filter((t) => podeGestao || (t.v !== "locacao" && t.v !== "bloqueio")).map((t) => (
                 <button key={t.v} onClick={() => escolherTipo(t.v)}
                   style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
                     border: "1px solid " + C.linha, background: "#fff", fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>
@@ -21902,7 +21902,9 @@ function useTurmasARAgenda() {
   }, []);
   return d;
 }
-function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias, reservas, bloqueiosAula, turmasAR, sessoesAR, hojeISO }) {
+/* ocultarCliente (19/11/2026, gestão fora do acesso dos professores): a reserva de quadra aparece como "Quadra reservada", sem o
+   nome nem o telefone de quem alugou */
+function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias, reservas, bloqueiosAula, turmasAR, sessoesAR, hojeISO, ocultarCliente }) {
   const blocos = blocosTurmasAR({ inicioISO, fimISO, turmasAR, sessoesAR, hojeISO: hojeISO || dataISO(new Date()) });
   (ocorrencias || []).forEach((o) => {
     if (o.data < inicioISO || o.data > fimISO) return;
@@ -21921,8 +21923,8 @@ function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias
     if (r.data < inicioISO || r.data > fimISO) return;
     blocos.push({
       id: "res:" + r.id, kind: "reserva", data: r.data, horaInicio: r.horaInicio, horaFim: r.horaFim,
-      categoria: "locacao", cor: corCategoriaOcorrencia("locacao"), titulo: r.nomeContato,
-      linha2: "Locação" + (r.origem === "cliente" ? " · pelo cliente" : ""),
+      categoria: "locacao", cor: corCategoriaOcorrencia("locacao"), titulo: ocultarCliente ? "Quadra reservada" : r.nomeContato,
+      linha2: "Locação" + (!ocultarCliente && r.origem === "cliente" ? " · pelo cliente" : ""),
       cancelada: false, quadraId: r.quadraId, semQuadra: false, reserva: r,
     });
   });
@@ -21939,7 +21941,7 @@ function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias
   return blocos;
 }
 
-function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, papelAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma, irParaTurmaAR }) {
+function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, papelAtual, exigeLogin, regrasReposicao, setAba, podeGestao = true, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma, irParaTurmaAR }) {
   const hojeISO = dataISO(new Date());
   const arAgenda = useTurmasARAgenda();
   // Celular abre em "Dia" (lista cabe numa tela sem rolagem horizontal);
@@ -21983,7 +21985,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
   const quadrasAtivas = (quadras || []).filter((q) => q.ativa !== false);
 
   const compromissos = useMemo(() => {
-    let base = construirBlocosPeriodo({ inicioISO: inicioRange, fimISO: fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula, turmasAR: arAgenda.turmas, sessoesAR: arAgenda.sessoes, hojeISO });
+    let base = construirBlocosPeriodo({ inicioISO: inicioRange, fimISO: fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula, turmasAR: arAgenda.turmas, sessoesAR: arAgenda.sessoes, hojeISO, ocultarCliente: !podeGestao });
     if (exigeLogin && uidAtual && !verTodos) {
       base = base.filter((b) => (b.categoria !== "aula" && b.categoria !== "reposicao" && b.categoria !== "alto")
         || !b.professorUid || b.professorUid === uidAtual || b.professorAuxiliarUid === uidAtual);
@@ -22092,7 +22094,8 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
               {t.r}
             </button>
           ))}
-          {mostraQuadras && (
+          {/* link de reservas, página pública, quadras e horários recorrentes: gestão (o professor não vê) */}
+          {mostraQuadras && podeGestao && (
             <div style={{ position: "relative" }}>
               <Botao pequeno variante="vazio" onClick={() => setMaisOpcoesAberto((v) => !v)}>Mais opções</Botao>
               {maisOpcoesAberto && (
@@ -22225,6 +22228,11 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                     </Botao>
                   </div>
                 </div>
+              ) : detalheAberto.kind === "reserva" && !podeGestao ? (
+                <>
+                  <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }} data-reserva-oculta>Quadra reservada</p>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{nomeQuadraPorId(detalheAberto.quadraId)} · {detalheAberto.horaInicio}–{detalheAberto.horaFim} · locação (cuidada pela gestão)</p>
+                </>
               ) : detalheAberto.kind === "reserva" ? (
                 <>
                   <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.reserva.nomeContato}</p>
@@ -22244,7 +22252,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                   <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.titulo}</p>
                   <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{detalheAberto.horaInicio}–{detalheAberto.horaFim} · todas as quadras</p>
                   <div className="mt-3">
-                    <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba && setAba("grade-aulas"); }}>Gerenciar em Horários recorrentes</Botao>
+                    {podeGestao && <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba && setAba("grade-aulas"); }}>Gerenciar em Horários recorrentes</Botao>}
                   </div>
                 </>
               )}
@@ -22259,7 +22267,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
         quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
         ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
         aoIrParaReposicoes={() => setAba && setAba("reposicoes")}
-        aoIrParaRecorrentes={() => setAba && setAba("grade-aulas")} />
+        aoIrParaRecorrentes={() => setAba && setAba("grade-aulas")} podeGestao={podeGestao} />
     </div>
   );
 }
@@ -25191,7 +25199,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-eventos-diaria";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-agenda-professor";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -25200,7 +25208,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Eventos: opções de inscrição com valor, período de vários dias e destaque no topo do site", d: "Na criação do evento, em Opções de inscrição, cadastre por exemplo 1 semana, 2 semanas e Diária avulsa, cada uma com o seu valor: quem se inscreve no site escolhe uma e vê o valor ali mesmo (sem opções, aparece o valor único da inscrição). Na diária (marque valor por dia), a pessoa escolhe os dias úteis do período e vê o total; no painel aparecem os dias de cada inscrição e quantas crianças vêm em cada dia. Cada opção tem a caixa aparece no site: desmarcada, o cliente não vê a opção, que continua valendo para inscrição lançada no painel. O evento também tem o Último dia, para os que duram vários dias (o site mostra o período, como 9 a 18 de dezembro), e aparece logo no topo da página de entrada. No painel, cada inscrição mostra a opção escolhida, e o resumo, o em aberto, a mensagem do WhatsApp e a planilha usam o valor de cada opção.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
+  { novo: true, t: "Agenda do professor sem dados da gestão", d: "Na Agenda do app dos professores, a locação de quadra aparece só como Quadra reservada, sem o nome e o telefone de quem alugou e sem cancelar a reserva; o + Agendar oferece aula individual, aula de turma e reposição (locação e bloqueio de quadra ficam com a gestão), e o menu com o link de reservas, a página pública, as quadras e os horários recorrentes saiu. A coordenação e a gestão continuam vendo tudo no painel teamyoda.com.br/gestao.", onde: "Agenda", aba: "agenda" },
+  { t: "Eventos: opções de inscrição com valor, período de vários dias e destaque no topo do site", d: "Na criação do evento, em Opções de inscrição, cadastre por exemplo 1 semana, 2 semanas e Diária avulsa, cada uma com o seu valor: quem se inscreve no site escolhe uma e vê o valor ali mesmo (sem opções, aparece o valor único da inscrição). Na diária (marque valor por dia), a pessoa escolhe os dias úteis do período e vê o total; no painel aparecem os dias de cada inscrição e quantas crianças vêm em cada dia. Cada opção tem a caixa aparece no site: desmarcada, o cliente não vê a opção, que continua valendo para inscrição lançada no painel. O evento também tem o Último dia, para os que duram vários dias (o site mostra o período, como 9 a 18 de dezembro), e aparece logo no topo da página de entrada. No painel, cada inscrição mostra a opção escolhida, e o resumo, o em aberto, a mensagem do WhatsApp e a planilha usam o valor de cada opção.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
   { t: "Eventos no site, com inscrição e controle de pagamentos", d: "Em Gestão › Eventos, o evento ganhou cartaz, para quem é (com a faixa de idade), inscrições até, valor da inscrição e a opção Mostrar no site. Marcado, ele aparece na página principal do teamyoda.com.br com o formulário: responsável, WhatsApp, e-mail e, em evento de criança, nome e nascimento da criança (a idade é conferida), se já é aluno, observações e a autorização do responsável. Cada inscrição chega no evento e no celular da coordenação. No evento: WhatsApp com a mensagem pronta, pagamento de cada inscrição (em aberto, pago ou isento, com valor, data e forma), custos, resumo (recebido, em aberto, custos e resultado) e a planilha em Excel. O app não cobra: o pagamento é combinado por fora.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
   { t: "Gestão da academia em painel próprio", d: "As telas de gestão saíram do app dos professores e foram para o painel teamyoda.com.br/gestao: quadras, horários recorrentes, clientes, torneios, eventos, aulas da equipe, relatório de aulas de toda a equipe, padrão de atendimento, financeiro e cobrança e a equipe da organização (contas e pedidos de cadastro). Quem usa é a coordenação e o administrativo, com a mesma conta e os mesmos dados; o Richard e o administrativo também abrem pela Central. No app continuam Hoje, Jogadores, Agenda (com as reposições e o relatório de aulas de cada professor), Pendências, turmas, alto rendimento, planejamentos e o método.", onde: "teamyoda.com.br/gestao", aba: "gestao-inicio" },
   { t: "Sessão do dia igual para todos os treinadores", d: "Quando um treinador gera ou muda a sessão do dia (individual, de turma ou do alto rendimento), quem está com a mesma sessão aberta passa a ver a mudança na hora, com o aviso de quem mudou, e a edição de um não apaga mais a do outro. No alto rendimento, quem abre a sessão da turma depois entra na sessão que já foi montada, em vez de montar outra. E o atleta com o plano gerado e ainda sem aprovar aparece como Plano montado, falta aprovar, com o botão Usar o plano ali mesmo (antes a sessão não montava e não dizia por quê).", onde: "Jogadores › Sessão de hoje · Turmas › Sessão · Grupos › Alto rendimento › Sessão da turma", aba: "equipes" },
@@ -29005,6 +29014,7 @@ function App() {
          aba === "agenda" ? <>{topoAgenda}<TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
            orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} papelAtual={papelAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
+           podeGestao={podeGestao || !exigeLogin}
            dataAlvo={agendaDataAlvo} visualizacaoAlvo={agendaVisualizacaoAlvo} aoConsumirAlvo={() => { setAgendaDataAlvo(null); setAgendaVisualizacaoAlvo(null); }}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaTurmaAR={irParaTurmaAR} /></> :
