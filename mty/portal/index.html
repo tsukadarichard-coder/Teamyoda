@@ -186,6 +186,10 @@
 
   /* eventos (19/11/2026): só aparece quando há evento marcado "Mostrar no site" no painel de gestão */
   #eventos[hidden], [data-link-eventos][hidden] { display: none !important; }
+  section.sec.topo-eventos { padding: 28px 0 40px; border-bottom: 1px solid var(--linha); }
+  @media (min-width: 900px) { section.sec.topo-eventos { padding: 40px 0 56px; } }
+  .topo-eventos .eventos { margin-top: 20px; }
+  .topo-eventos .lead { margin-top: 8px; }
   .eventos { display: grid; gap: 28px; margin-top: 36px; }
   .evento { display: grid; gap: 20px; background: var(--fundo); border: 1px solid var(--linha); padding: 18px; }
   .evento .cartaz { width: 100%; height: auto; max-height: 560px; object-fit: contain; background: #fff; border: 1px solid var(--linha); }
@@ -262,6 +266,16 @@
 </header>
 
 <main id="conteudo">
+  <!-- eventos no topo da página (pedido do Richard em 19/11/2026: "Precisa aparecer logo no topo da página de entrada"): só aparece com evento marcado para o site -->
+  <section class="sec branca topo-eventos" id="eventos" aria-labelledby="tEventos" hidden>
+    <div class="cont">
+      <span class="olho">Eventos</span>
+      <h2 id="tEventos">Próximos eventos</h2>
+      <p class="lead">Inscreva-se por aqui. Depois falamos com você pelo WhatsApp para confirmar a vaga.</p>
+      <div class="eventos" id="listaEventos"></div>
+    </div>
+  </section>
+
   <section class="abertura" id="inicio" aria-labelledby="tInicio">
     <div class="foto"><img src="../assets/foto-forehand.jpg" alt="Atleta do Team Yoda batendo um forehand em quadra de saibro" width="1179" height="804" fetchpriority="high"></div>
     <div class="cont">
@@ -274,15 +288,6 @@
           <a class="btn btn-claro" href="#acesso">Sou aluno</a>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section class="sec branca" id="eventos" aria-labelledby="tEventos" hidden>
-    <div class="cont">
-      <span class="olho">Eventos</span>
-      <h2 id="tEventos">Próximos eventos</h2>
-      <p class="lead">Inscreva-se por aqui. Depois falamos com você pelo WhatsApp para confirmar a vaga.</p>
-      <div class="eventos" id="listaEventos"></div>
     </div>
   </section>
 

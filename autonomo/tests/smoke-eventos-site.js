@@ -64,12 +64,14 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await p.goto("http://localhost:" + srvSite.address().port + "/portal/");
   await p.waitForSelector('#eventos:not([hidden]) [data-evento="ev1"]', { timeout: 20000 });
   assert.strictEqual(await p.locator("[data-evento]").count(), 1, "só o evento marcado para o site");
+  /* no topo da página, antes da abertura (pedido de 19/11/2026) */
+  assert(await p.evaluate(() => { const e = document.getElementById("eventos"), a = document.getElementById("inicio"); return !!(e.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) && e.getBoundingClientRect().top < 200; }), "eventos no topo, antes da abertura");
   const t = await p.innerText("#eventos");
   assert(/Camp de Fim de Ano Team Yoda/.test(t) && /Crianças de 8 a 12 anos/.test(t) && /Cooper Tênis/.test(t) && /09:00 às 12:00/.test(t) && /13 a 18 de dezembro/.test(t), t);
   assert(!/R\$/.test(await p.content()) && !/R\$|180/.test(t), "nenhum valor na página");
   assert(await p.isVisible('#menuBt') && (await p.locator("[data-link-eventos]").first().getAttribute("hidden")) === null, "link Eventos no menu");
   const sem = await p.evaluate(() => document.documentElement.scrollWidth); assert(sem <= 390, "sem rolagem lateral: " + sem);
-  if (capturas) await p.locator("#eventos").screenshot({ path: path.join(capturas, "site-eventos.png") });
+  if (capturas) { await p.locator("#eventos").screenshot({ path: path.join(capturas, "site-eventos.png") }); await p.screenshot({ path: path.join(capturas, "site-topo.png") }); }
   await p.click('[data-inscrever="ev1"]');
   const form = p.locator('[data-form-evento="ev1"]');
   await form.locator('[name="nomeContato"]').fill("Maria Souza");
