@@ -65,6 +65,10 @@ function dadosIniciais() {
     assert(/Jogos em vídeo/i.test(t) && /30 pontos · 60% ganhos/.test(t), app + ": jogos em vídeo");
     assert(/Próxima aula/i.test(t) && !/Cancelar esta aula|Pedir outro horário/.test(t), app + ": sem cancelar nem remarcar aula pelo link");
     assert.strictEqual(await p.locator("[data-acao=abrir-cancelar], [data-acao=abrir-reagendar]").count(), 0, app + ": sem os botões");
+    if (app === "mty") { // Seu professor e as próximas aulas (19/11/2026): a turma de sábado aparece nos próximos 14 dias
+      assert.strictEqual(await p.locator("[data-minhas-aulas]").count(), 1, "mty: painel das próximas aulas");
+      assert(await p.locator("[data-aula-item]").count() >= 2 && /Turma Sub-12/.test(await p.locator("[data-minhas-aulas]").innerText()), "mty: aulas da turma nas próximas aulas");
+    }
     if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, app + "-link-aluno.png"), fullPage: true }); }
 
     // relatório completo de uma análise (com fotos e comentários)

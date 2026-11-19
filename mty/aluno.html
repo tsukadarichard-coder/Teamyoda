@@ -563,7 +563,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
-        painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosCiclo(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelMinhasAulas(d) + painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosCiclo(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -573,6 +573,7 @@ function todosHorarios(agenda) {
     let html = '';
     html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header><div id="ql-avisos-celular"></div>';
     if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
+    html += painelMinhasAulas(d);
     html += painelProximaAula(d);
     html += painelMinhaArea();
     html += '<div id="ar-painel"></div>';
@@ -1022,6 +1023,41 @@ function todosHorarios(agenda) {
      não realizada do plano) — d.proximaAula é só o horário fixo mais
      próximo, um dado de agenda, não necessariamente desta mesma aula.
      Nunca inventamos um horário: sem data calculada, dizemos isso. */
+  /* Seu professor e as próximas aulas (pedido do Richard em 19/11/2026): tudo o que está marcado para este aluno nos próximos
+     14 dias — individual, turma, reposição, experimental e alto rendimento —, com dia, hora, quadra, professor e aula cancelada.
+     Vem pronto do servidor (ver-aluno.js: proximasAulasDoAluno); sem nada marcado, o painel diz isso. */
+  function painelMinhasAulas(d) {
+    const profs = Array.isArray(d.professores) ? d.professores : [];
+    const aulas = Array.isArray(d.proximasAulas) ? d.proximasAulas : null;
+    if (!profs.length && !aulas) return '';
+    let html = '<div class="painel" data-minhas-aulas><h2>' + (profs.length > 1 ? 'Seus professores' : 'Seu professor') + '</h2>';
+    if (profs.length) {
+      html += profs.map(function (p) {
+        return '<p class="desc" style="margin:0 0 4px"><b>' + escapar(p.nome) + '</b>' + (p.onde && p.onde.length ? ' <span style="color:#6b6b6b">· ' + escapar(p.onde.join(', ')) + '</span>' : '') + '</p>';
+      }).join('');
+    } else html += '<p class="desc" style="margin:0 0 4px">A academia ainda não definiu o seu professor.</p>';
+    html += '<h2 style="margin-top:16px">Próximas aulas</h2>';
+    if (!aulas || !aulas.length) {
+      html += '<p class="desc" style="margin:0">Nenhuma aula marcada para os próximos 14 dias.</p></div>';
+      return html;
+    }
+    html += '<div data-lista-aulas>' + aulas.map(function (a) {
+      const dt = new Date(a.data + 'T12:00:00');
+      const dia = (a.diaSemana || '') + ', ' + dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const cancelada = a.status === 'cancelada';
+      const linha2 = [a.tipo === 'turma' ? 'Turma' : '', a.quadra || '', a.professor ? 'Prof. ' + a.professor.replace(/^prof(\.|essora?)\s*/i, '') + (a.substituindo ? ' (no lugar de ' + a.substituindo + ')' : '') : '']
+        .filter(Boolean).join(' · ');
+      return '<div data-aula-item style="display:flex;gap:12px;padding:9px 0;border-top:1px solid rgba(0,0,0,.08)' + (cancelada ? ';opacity:.7' : '') + '">' +
+        '<div style="min-width:74px;font-weight:700;font-size:13px">' + escapar(dia) + '<div style="font-weight:400;color:#6b6b6b">' + escapar(a.horaInicio + (a.horaFim ? '–' + a.horaFim : '')) + '</div></div>' +
+        '<div style="flex:1;min-width:0"><div style="font-weight:600' + (cancelada ? ';text-decoration:line-through' : '') + '">' + escapar(a.titulo || 'Aula') + '</div>' +
+        '<div style="font-size:12.5px;color:#6b6b6b">' + escapar(linha2) + '</div>' +
+        (cancelada ? '<div data-aula-cancelada style="font-size:12.5px;color:#B23B2E;font-weight:700">Cancelada' + (a.motivo ? ' · ' + escapar(a.motivo) : '') + '</div>' : '') +
+        '</div></div>';
+    }).join('') + '</div>';
+    html += '<p class="aviso-mini" style="font-size:12.5px;margin:10px 0 0">Para faltar ou trocar de horário, fale direto com o seu professor.</p></div>';
+    return html;
+  }
+
   function painelProximaAula(d) {
     let html = '<div class="painel">';
     html += '<h2>Próxima aula</h2>';

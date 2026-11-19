@@ -252,6 +252,15 @@ async function responderGet(org, id, q, ctx) {
 
   /* análises de movimento, jogos com scout e o que mais o treinador registrou: tudo o que é do jogador vai no link */
   const extras = await conteudoDoAluno(org, id, aluno);
+  /* próximas aulas (14 dias) e professores: Agenda + horários fixos + alto rendimento; sem os dados, o resto da página segue */
+  let proximasAulas = [], professores = [];
+  try {
+    const [docOc, docAr, docQ] = await Promise.all([lerDado(org, "mty:ocorrencias:v1"), lerDado(org, "mty:arTurmas:v1"), lerDado(org, "mty:quadras:v1")]);
+    const ocorrencias = docOc ? lerJSON(docOc.value, []) : [], arTurmas = docAr ? lerJSON(docAr.value, []) : [], quadras = docQ ? lerJSON(docQ.value, []) : [];
+    const hojeSP = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+    proximasAulas = proximasAulasDoAluno({ aluno, turmasDoAluno, ocorrencias: Array.isArray(ocorrencias) ? ocorrencias : [], arTurmas: Array.isArray(arTurmas) ? arTurmas : [], quadras: Array.isArray(quadras) ? quadras : [], hoje: hojeSP, dias: 14 });
+    professores = professoresDoAluno(aluno, turmasDoAluno, Array.isArray(arTurmas) ? arTurmas : []);
+  } catch (e) { proximasAulas = []; professores = professoresDoAluno(aluno, turmasDoAluno, []); }
   const planosEquipe = await planosEquipeDoAluno(org, id).catch(() => []);
 
   let feedbacksEnviados = [];
@@ -263,6 +272,8 @@ async function responderGet(org, id, q, ctx) {
   return resposta(200, {
     nome: aluno.nome || "Jogador",
     academiaNome,
+    professores,
+    proximasAulas,
     nivel: aluno.nivel || null,
     /* false só quando o nível veio de um atalho que pula o checklist de
        critérios observados em quadra (sugestão por IA aplicada direto —
@@ -407,6 +418,64 @@ function resumoPlanoTurma(tu) {
 }
 
 function lerJSON(v, padrao) { try { const x = JSON.parse(v); return x == null ? padrao : x; } catch (e) { return padrao; } }
+
+/* ── Próximas aulas e professor do aluno (pedido do Richard em 19/11/2026: "para o aluno, qdo ele entrar no sistema... o sistema
+   automaticamente localize o professor respectivo e as aulas, quaisquer que sejam") ──
+   Junta, nos próximos `dias` (horário de São Paulo): as aulas já marcadas na Agenda (mty:ocorrencias:v1: individual dele, das
+   turmas dele, reposição, experimental; com cancelamento, substituto e quadra), os horários fixos dele e das turmas que a Agenda
+   ainda não gerou, e as turmas de alto rendimento (mty:arTurmas:v1). Locação e bloqueio nunca entram. Função pura (testável). */
+const DIAS_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+function minutosDe(d) { if (typeof d === "number") return d; return { "30min": 30, "45min": 45, "1h": 60, "1h30": 90, "2h": 120 }[d] || 60; }
+function somaHora(h, min) { const [a, b] = String(h || "00:00").split(":").map(Number), t = a * 60 + b + (min || 0); return String(Math.floor(t / 60) % 24).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); }
+function proximasAulasDoAluno({ aluno, turmasDoAluno, ocorrencias, arTurmas, quadras, hoje, dias }) {
+  const id = aluno.id, n = dias || 14, fim = new Date(hoje + "T12:00:00Z"); fim.setUTCDate(fim.getUTCDate() + n - 1);
+  const fimISO = fim.toISOString().slice(0, 10);
+  const nomeQuadra = (qid) => ((quadras || []).find((q) => q && q.id === qid) || {}).nome || "";
+  const idsTurmas = new Set((turmasDoAluno || []).map((t) => t.id));
+  const nomeTurma = (tid) => ((turmasDoAluno || []).find((t) => t.id === tid) || {}).nome || "Turma";
+  const out = [], ocupado = new Set();
+  const chave = (origem, data, hora) => origem + "|" + data + "|" + hora;
+  (ocorrencias || []).forEach((o) => {
+    if (!o || !o.data || o.data < hoje || o.data > fimISO || o.tipo === "locacao" || o.tipo === "bloqueio" || o.status === "ignorada") return;
+    const minha = (o.origemTipo === "individual" && o.origemId === id) || (o.origemTipo === "turma" && idsTurmas.has(o.origemId)) || (o.alunoId === id);
+    if (!minha) return;
+    const org0 = o.origemTipo === "turma" ? "t:" + o.origemId : "a";
+    ocupado.add(chave(org0, o.data, o.horaInicio));
+    /* aula fixa remarcada para outra hora: o horário original do dia não volta como projeção */
+    const rc = String(o.recorrenciaChave || "").split(":"); if (rc.length >= 4) ocupado.add(chave(org0, o.data, rc.slice(3).join(":")));
+    const prof = o.substitutoNome || o.professorNome || "";
+    out.push({ data: o.data, horaInicio: o.horaInicio || "", horaFim: o.horaFim || "",
+      tipo: o.tipo === "reposicao" ? "reposicao" : o.tipo === "experimental" ? "experimental" : o.origemTipo === "turma" ? "turma" : "individual",
+      titulo: o.origemTipo === "turma" ? nomeTurma(o.origemId) : o.tipo === "reposicao" ? "Reposição" : o.tipo === "experimental" ? "Aula experimental" : "Aula individual",
+      professor: prof, substituindo: o.substitutoNome && o.professorNome && o.substitutoNome !== o.professorNome ? o.professorNome : "",
+      quadra: nomeQuadra(o.quadraId), status: o.status === "cancelada" ? "cancelada" : o.status === "realizada" ? "realizada" : o.status === "falta" ? "falta" : "agendada",
+      motivo: o.status === "cancelada" ? String(o.motivoCancelamento || "").slice(0, 80) : "" });
+  });
+  /* horários fixos ainda não gerados na Agenda (aluno, turmas, alto rendimento) */
+  const fixos = [];
+  (aluno.horarios || []).forEach((h) => fixos.push({ origem: "a", h, titulo: "Aula individual", tipo: "individual", prof: aluno.professorNome || "", dur: minutosDe(aluno.duracaoPadrao) }));
+  (turmasDoAluno || []).forEach((t) => (t.horarios || []).forEach((h) => fixos.push({ origem: "t:" + t.id, h, titulo: t.nome || "Turma", tipo: "turma", prof: t.professorNome || "", dur: minutosDe(t.duracaoPadrao) })));
+  (arTurmas || []).filter((t) => t && Array.isArray(t.membros) && t.membros.includes(id)).forEach((t) => (t.horarios || []).forEach((h) => fixos.push({ origem: "ar:" + t.id, h, titulo: (t.nome || "Turma") + " · alto rendimento", tipo: "alto", prof: t.professorNome || "", dur: Number(t.duracaoMin) || 120 })));
+  for (let d = new Date(hoje + "T12:00:00Z"), k = 0; k < n; k++, d.setUTCDate(d.getUTCDate() + 1)) {
+    const iso = d.toISOString().slice(0, 10), dia = d.getUTCDay();
+    fixos.forEach((f) => {
+      if (Number(f.h.dia) !== dia || !f.h.hora || ocupado.has(chave(f.origem, iso, f.h.hora))) return;
+      ocupado.add(chave(f.origem, iso, f.h.hora));
+      out.push({ data: iso, horaInicio: f.h.hora, horaFim: somaHora(f.h.hora, f.dur), tipo: f.tipo, titulo: f.titulo, professor: f.prof, substituindo: "", quadra: nomeQuadra(f.h.quadraId), status: "agendada", motivo: "" });
+    });
+  }
+  return out.sort((x, y) => (x.data + x.horaInicio).localeCompare(y.data + y.horaInicio)).slice(0, 40)
+    .map((a) => ({ ...a, diaSemana: DIAS_SEMANA[new Date(a.data + "T12:00:00Z").getUTCDay()] }));
+}
+/* professores do aluno: o dele e o de cada turma (nomes, sem repetir) */
+function professoresDoAluno(aluno, turmasDoAluno, arTurmas) {
+  const lista = [];
+  const add = (nome, onde) => { nome = String(nome || "").trim(); if (!nome) return; const j = lista.find((x) => x.nome === nome); if (j) { if (!j.onde.includes(onde)) j.onde.push(onde); } else lista.push({ nome, onde: [onde] }); };
+  add(aluno.professorNome, "aulas individuais");
+  (turmasDoAluno || []).forEach((t) => { add(t.professorNome, t.nome || "turma"); add(t.professorAuxiliarNome, t.nome || "turma"); });
+  (arTurmas || []).filter((t) => t && Array.isArray(t.membros) && t.membros.includes(aluno.id)).forEach((t) => add(t.professorNome, (t.nome || "turma") + " (alto rendimento)"));
+  return lista.slice(0, 6);
+}
 async function lerDado(org, chave) {
   const snap = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(chave).get();
   return snap.exists ? snap.data() : null;
@@ -544,4 +613,4 @@ function resposta(statusCode, corpo) {
 }
 
 /* usado pela Área do aluno (aluno-conta.js): mesmos dados e as mesmas ações do link, com a conta logada no lugar do token */
-module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS };
+module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS, proximasAulasDoAluno, professoresDoAluno };
