@@ -92,7 +92,7 @@ async function handleGet(event) {
       confirmados: (e.convidados || []).filter((c) => c.status === "confirmado").length,
       /* site do Team Yoda: só o que é público (nunca nomes, telefones nem valores) */
       site: e.site === true, publico: e.publico || "", idadeMin: e.idadeMin ?? null, idadeMax: e.idadeMax ?? null,
-      inscricoesAte: e.inscricoesAte || "", cartaz: e.cartaz || "",
+      inscricoesAte: e.inscricoesAte || "", cartaz: e.cartaz || "", dataFim: e.dataFim || "",
     }));
 
   return resposta(200, { academia: info.nome || org, torneios: torneiosAbertos, eventos: eventosAtivos });
