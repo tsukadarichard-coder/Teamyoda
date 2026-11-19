@@ -23,7 +23,7 @@ const ano = new Date().getFullYear(), dataEv = ano + "-12-13", ontem = new Date(
 store["orgs/team-yoda/dados/mty:eventos:v1"] = { value: JSON.stringify([
   { id: "ev1", nome: "Camp de fim de ano", data: dataEv, dataFim: ano + "-12-22", horaInicio: "09:00", local: "Cooper Tênis", tipo: "clinica", descricao: "Tênis e brincadeiras", vagas: 3, ativo: true, site: true,
     publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, valor: 150, cartaz: "/x.jpg", custos: [{ id: "c", descricao: "Camisetas", valor: 300 }],
-    opcoes: [{ id: "s1", nome: "1 semana", valor: 450 }, { id: "s2", nome: "2 semanas", valor: 800 }, { id: "s3", nome: "Diária avulsa", valor: 100, porDia: true }],
+    opcoes: [{ id: "s1", nome: "1 semana", valor: 450 }, { id: "s2", nome: "2 semanas", valor: 800 }, { id: "s3", nome: "Diária avulsa", valor: 100, porDia: true }, { id: "s4", nome: "Pacote equipe (só no painel)", valor: 50, oculta: true }],
     convidados: [{ id: "i0", nomeContato: "Já Inscrito", telefoneContato: "11 90000-0000", status: "confirmado" }] },
   { id: "ev2", nome: "Encerrado", data: dataEv, ativo: true, site: true, inscricoesAte: ontem, convidados: [] },
   { id: "ev3", nome: "Social adulto", data: dataEv, ativo: true, convidados: [] },
@@ -44,6 +44,7 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
   /* opções e valor aparecem para quem se inscreve (pedido de 19/11/2026) */
   assert.deepStrictEqual(e1.opcoes, [{ id: "s1", nome: "1 semana", valor: 450 }, { id: "s2", nome: "2 semanas", valor: 800 }, { id: "s3", nome: "Diária avulsa", valor: 100, porDia: true }]);
   const diasEv = uteis(dataEv, ano + "-12-22");
+  assert(!e1.opcoes.some((o) => o.id === "s4"), "opção fora do site não aparece");
   assert.deepStrictEqual(e1.dias, diasEv, "dias úteis do evento");
   assert(diasEv.length >= 5 && diasEv.every((d) => [1, 2, 3, 4, 5].includes(new Date(d + "T12:00:00Z").getUTCDay())));
 
@@ -67,6 +68,7 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
   assert.strictEqual(avisos.length, 1); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
   assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/gestao?aba=eventos");
   /* lotou: a próxima vai para a lista de espera */
+  assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s4", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "opção fora do site não vale no site");
   /* diária avulsa: dias do evento, valor × dias (ocupa a última vaga) */
   assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s3", criancaNome: "Rui", criancaNascimento: nasc(9), autorizacao: true })).status, 400, "diária sem dias");
   const fds = (() => { for (let d = new Date(dataEv + "T12:00:00Z"); ; d.setUTCDate(d.getUTCDate() + 1)) if (!(d.getUTCDay() % 6)) return d.toISOString().slice(0, 10); })();
