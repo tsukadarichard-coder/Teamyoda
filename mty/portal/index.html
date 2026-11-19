@@ -212,6 +212,12 @@
   .opcoes-insc input { width: 20px; height: 20px; flex: none; }
   .opcoes-insc .preco { margin-left: auto; font-family: var(--titulo); font-weight: 800; white-space: nowrap; }
   .valor-unico { font-weight: 600; margin: 0 0 14px; }
+  .dias-diaria[hidden] { display: none; }
+  .dias-grade { display: flex; flex-wrap: wrap; gap: 8px; }
+  .dias-grade label { display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1.5px solid #BDBAB4; border-radius: 4px; background: #fff; cursor: pointer; font-weight: 600; font-size: 15px; }
+  .dias-grade label:has(input:checked) { border-color: var(--verm); box-shadow: 0 0 0 1px var(--verm); }
+  .dias-grade input { width: 18px; height: 18px; }
+  .total-diaria { font-weight: 700; margin-top: 10px; }
   .valor-unico b { font-family: var(--titulo); font-size: 20px; }
   .autoriza { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; color: var(--grafite); margin: 6px 0 14px; cursor: pointer; }
   .autoriza input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
@@ -554,6 +560,7 @@
       return a.toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) + " a " + b.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
     } catch (e) { return dataBR(d1) + " a " + dataBR(d2); }
   }
+  function diaCurto(d) { try { return new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", ""); } catch (x) { return dataBR(d); } }
   function reais(v) { return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
   function idadeEm(nasc, ref) {
     var a = nasc.split("-").map(Number), b = (ref || new Date().toISOString().slice(0, 10)).split("-").map(Number);
@@ -574,8 +581,12 @@
       '<form id="f-' + id + '" data-form-evento="' + id + '" novalidate hidden>' +
       /* opções de inscrição (1 semana, 2 semanas…) com o valor de cada uma; sem opções, o valor único do evento */
       ((e.opcoes || []).length ? '<fieldset data-opcoes-inscricao><legend>Escolha a inscrição</legend><div class="opcoes-insc">' + e.opcoes.map(function (o) {
-        return '<label><input type="radio" name="opcaoId" value="' + escH(o.id) + '"' + (e.opcoes.length === 1 ? " checked" : "") + '> <span>' + escH(o.nome) + "</span>" + (o.valor != null ? '<span class="preco">' + escH(reais(o.valor)) + "</span>" : "") + "</label>";
-      }).join("") + "</div></fieldset>" : e.valor != null ? '<p class="valor-unico" data-valor-inscricao>Valor da inscrição: <b>' + escH(reais(e.valor)) + "</b></p>" : "") +
+        return '<label><input type="radio" name="opcaoId" value="' + escH(o.id) + '"' + (o.porDia ? " data-por-dia" : "") + (e.opcoes.length === 1 ? " checked" : "") + '> <span>' + escH(o.nome) + "</span>" + (o.valor != null ? '<span class="preco">' + escH(reais(o.valor)) + (o.porDia ? " por dia" : "") + "</span>" : "") + "</label>";
+      }).join("") + "</div>" +
+      /* diária avulsa: os dias úteis do período, para marcar; o total aparece embaixo */
+      (e.opcoes.some(function (o) { return o.porDia; }) && (e.dias || []).length ? '<div class="dias-diaria" data-dias-diaria hidden><p class="campo" style="margin:14px 0 8px">Quais dias?</p><div class="dias-grade">' + e.dias.map(function (d) {
+        return '<label><input type="checkbox" name="dias" value="' + escH(d) + '"> ' + escH(diaCurto(d)) + "</label>";
+      }).join("") + '</div><p class="total-diaria" data-total-diaria></p></div>' : "") + "</fieldset>" : e.valor != null ? '<p class="valor-unico" data-valor-inscricao>Valor da inscrição: <b>' + escH(reais(e.valor)) + "</b></p>" : "") +
       '<fieldset><legend>Responsável</legend>' +
       '<label class="campo">Nome do responsável<input name="nomeContato" autocomplete="name" maxlength="80" required></label>' +
       '<div class="duas"><label class="campo">WhatsApp<input name="telefoneContato" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="(11) 99999-9999" required></label>' +
@@ -596,6 +607,17 @@
     var crianca = e.idadeMin != null || e.idadeMax != null;
     function msg(tipo, t) { m.className = "msg msg-" + tipo; m.textContent = t; m.hidden = !t; }
     function marca(campo, erro) { if (erro) { campo.setAttribute("aria-invalid", "true"); campo.focus(); } else campo.removeAttribute("aria-invalid"); }
+    /* diária avulsa: mostra os dias quando ela é escolhida e soma o total */
+    var caixaDias = f.querySelector("[data-dias-diaria]"), totalDias = f.querySelector("[data-total-diaria]");
+    var opDiaria = (e.opcoes || []).filter(function (o) { return o.porDia; })[0];
+    function atualizaDias() {
+      if (!caixaDias) return;
+      var sel = f.querySelector('input[name="opcaoId"]:checked'), ehDiaria = !!(sel && sel.hasAttribute("data-por-dia"));
+      caixaDias.hidden = !ehDiaria;
+      var n = f.querySelectorAll('input[name="dias"]:checked').length;
+      totalDias.textContent = ehDiaria && n && opDiaria && opDiaria.valor != null ? n + (n === 1 ? " dia · total " : " dias · total ") + reais(opDiaria.valor * n) : ehDiaria ? "Marque os dias que a criança vai." : "";
+    }
+    f.addEventListener("change", atualizaDias);
     bt.addEventListener("click", function () { var abrir = f.hidden; f.hidden = !abrir; bt.setAttribute("aria-expanded", String(abrir)); if (abrir) f.nomeContato.focus(); });
     f.addEventListener("submit", function (ev) {
       ev.preventDefault();
@@ -618,6 +640,10 @@
         var op = f.querySelector('input[name="opcaoId"]:checked');
         if (!op) return msg("erro", "Escolha uma das opções de inscrição.");
         d.opcaoId = op.value;
+        if (op.hasAttribute("data-por-dia")) {
+          d.dias = Array.prototype.map.call(f.querySelectorAll('input[name="dias"]:checked'), function (x) { return x.value; });
+          if (!d.dias.length) return msg("erro", "Marque pelo menos um dia da diária.");
+        }
       }
       var b = f.querySelector('button[type="submit"]'); b.disabled = true; msg("ok", "Enviando…");
       fetch(API_EV, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(d) })

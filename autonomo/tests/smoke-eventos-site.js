@@ -19,10 +19,12 @@ require.cache[require.resolve(fx + "_push.js")] = { id: "p", filename: "p", load
 const F = require(fx + "inscricao-torneio-evento.js");
 const ano = new Date().getFullYear(), dataEv = ano + "-12-13";
 const CHAVE = "orgs/team-yoda/dados/mty:eventos:v1";
+const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z"); d.toISOString().slice(0, 10) <= b; d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDay() % 6) o.push(d.toISOString().slice(0, 10)); return o; };
+const diasEv = uteis(dataEv, ano + "-12-18");
 store[CHAVE] = { value: JSON.stringify([
   { id: "ev1", nome: "Camp de Fim de Ano Team Yoda", data: dataEv, dataFim: ano + "-12-18", horaInicio: "09:00", horaFim: "12:00", local: "Cooper Tênis", tipo: "clinica", vagas: 20, ativo: true, site: true,
     descricao: "Uma manhã de tênis, jogos e brincadeiras.\nLeve garrafinha e protetor solar.", publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, cartaz: "/assets/foto-forehand.jpg", convidados: [],
-    opcoes: [{ id: "s1", nome: "1 semana (13 a 16/12)", valor: 450 }, { id: "s2", nome: "2 semanas (13 a 18/12)", valor: 800 }] },
+    opcoes: [{ id: "s1", nome: "1 semana (13 a 16/12)", valor: 450 }, { id: "s2", nome: "2 semanas (13 a 18/12)", valor: 800 }, { id: "s3", nome: "Diária avulsa", valor: 100, porDia: true }] },
   { id: "ev2", nome: "Noite social (só no app)", data: dataEv, ativo: true, convidados: [] },
 ]) };
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".json": "application/json" };
@@ -92,7 +94,17 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await form.locator('[name="autorizacao"]').check();
   await form.locator('button[type="submit"]').click();
   assert(/Escolha uma das opções/.test(await form.locator(".msg").innerText()), "pede a opção");
+  /* diária avulsa: aparecem os dias úteis e o total */
+  await form.locator('input[name="opcaoId"][value="s3"]').check();
+  assert(await form.locator("[data-dias-diaria]").isVisible());
+  assert.strictEqual(await form.locator('input[name="dias"]').count(), diasEv.length);
+  await form.locator('button[type="submit"]').click();
+  assert(/pelo menos um dia/.test(await form.locator(".msg").innerText()));
+  await form.locator('input[name="dias"]').nth(0).check(); await form.locator('input[name="dias"]').nth(1).check();
+  assert(/2 dias · total R\$\s?200,00/.test(await form.locator("[data-total-diaria]").innerText()), await form.locator("[data-total-diaria]").innerText());
+  if (capturas) await p.locator('[data-evento="ev1"] [data-opcoes-inscricao]').screenshot({ path: path.join(capturas, "site-diaria.png") });
   await form.locator('input[name="opcaoId"][value="s2"]').check();
+  assert(!(await form.locator("[data-dias-diaria]").isVisible()), "dias somem com outra opção");
   if (capturas) await p.locator('[data-evento="ev1"]').screenshot({ path: path.join(capturas, "site-form.png") });
   await form.locator('button[type="submit"]').click();
   await p.waitForSelector("[data-inscricao-ok]");
@@ -106,6 +118,8 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   const evPainel = JSON.parse(store[CHAVE].value)[0];
   evPainel.convidados.push({ id: "i2", nomeContato: "João Lima", telefoneContato: "11 97777-6666", criancaNome: "Theo Lima", criancaNascimento: (ano - 11) + "-01-20", status: "confirmado", origem: "cliente", vistoPeloStaff: false, pagamento: { status: "pendente" }, opcaoId: "s1", opcaoNome: "1 semana (13 a 16/12)", valor: 450 },
     { id: "i3", nomeContato: "Ana Reis", telefoneContato: "11 96666-5555", criancaNome: "Bia Reis", criancaNascimento: (ano - 9) + "-05-05", status: "espera", origem: "cliente", vistoPeloStaff: false, pagamento: { status: "pendente" }, opcaoId: "s1", opcaoNome: "1 semana (13 a 16/12)", valor: 450 });
+  /* uma diária de 1 dia, confirmada e isenta (não muda o "em aberto") */
+  evPainel.convidados.push({ id: "i4", nomeContato: "Caio Lima", telefoneContato: "11 95555-4444", criancaNome: "Davi Lima", criancaNascimento: (ano - 10) + "-02-02", status: "confirmado", origem: "cliente", vistoPeloStaff: true, pagamento: { status: "isento" }, opcaoId: "s3", opcaoNome: "Diária avulsa", dias: [diasEv[0]], valor: 100 });
   const ctx2 = await b.newContext({ viewport: { width: 1000, height: 1000 }, acceptDownloads: true });
   await ctx2.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx/, (rota) => rota.fulfill({ contentType: "text/javascript", body: fs.readFileSync(XLSX_JS) }));
   await ctx2.route(/tailwindcss/, (rota) => rota.fulfill({ contentType: "text/javascript", body: "" }));
@@ -119,8 +133,11 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await q.waitForSelector("[data-resumo-financeiro]");
   await q.waitForFunction(() => window.__eventos[0].convidados.every((c) => c.vistoPeloStaff !== false));
   const caixa = (k) => q.innerText('[data-resumo-evento="' + k + '"]');
-  assert(/3 \(1 na espera\)/.test(await caixa("inscritos")) && /2 · R\$\s?1\.250,00/.test(await caixa("aberto")) && /R\$\s?0,00/.test(await caixa("recebido")), await q.innerText("[data-resumo-financeiro]"));
-  assert(/1 semana \(13 a 16\/12\): 2 inscrições \(0 pagas\) · 2 semanas \(13 a 18\/12\): 1 inscrição \(0 pagas\)/.test(await q.innerText("[data-resumo-opcoes]")), await q.innerText("[data-resumo-opcoes]"));
+  const porDia = await q.innerText("[data-resumo-dias]");
+  assert(/Crianças por dia:/.test(porDia) && (porDia.match(/ 3( ·|$)/g) || []).length === 1 && (porDia.match(/ 2( ·|$)/g) || []).length === diasEv.length - 1, "por dia: " + porDia);
+  assert(/Diária avulsa \(1 dia: /.test(await q.innerText('[data-inscricao-evento="i4"]')), "dias da diária no cartão");
+  assert(/4 \(1 na espera\)/.test(await caixa("inscritos")) && /2 · R\$\s?1\.250,00/.test(await caixa("aberto")) && /R\$\s?0,00/.test(await caixa("recebido")), await q.innerText("[data-resumo-financeiro]"));
+  assert(/1 semana \(13 a 16\/12\): 2 inscrições \(0 pagas\) · 2 semanas \(13 a 18\/12\): 1 inscrição \(0 pagas\) · Diária avulsa: 1 inscrição \(0 pagas\)/.test(await q.innerText("[data-resumo-opcoes]")), await q.innerText("[data-resumo-opcoes]"));
   /* Maria pagou (Pix), Theo fica em aberto; custo das camisetas */
   const maria = q.locator('[data-inscricao-evento="' + insc.id + '"]');
   await maria.locator("[data-pagamento-status]").selectOption("pago");
@@ -144,7 +161,8 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   const wb = X.read(fs.readFileSync(arq)); fs.unlinkSync(arq);
   assert.deepStrictEqual(wb.SheetNames, ["Resumo", "Inscrições", "Custos"]);
   const linhas = X.utils.sheet_to_json(wb.Sheets["Inscrições"]);
-  assert.strictEqual(linhas.length, 3);
+  assert.strictEqual(linhas.length, 4);
+  assert.strictEqual(linhas.find((l) => l["Criança"] === "Davi Lima")["Dias"], diasEv[0].split("-").reverse().slice(0, 2).join("/"));
   const lia = linhas.find((l) => l["Criança"] === "Lia Souza");
   assert.deepStrictEqual([lia["Opção"], lia["Pagamento"], lia["Valor pago (R$)"], lia["Forma"], lia["Observações"], lia["Já é aluno"]], ["2 semanas (13 a 18/12)", "Pago", 800, "Pix", "Alergia a amendoim", "Não"]);
   const resumo = Object.fromEntries(X.utils.sheet_to_json(wb.Sheets["Resumo"], { header: 1 }));
