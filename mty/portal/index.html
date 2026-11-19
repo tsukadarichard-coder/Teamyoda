@@ -533,13 +533,22 @@
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "")) return "";
     try { return new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); } catch (e) { return dataBR(d); }
   }
+  /* período de vários dias: "9 a 18 de dezembro" (mesmo mês) ou as duas datas por extenso */
+  function periodo(d1, d2) {
+    if (!d2 || d2 === d1 || !/^\d{4}-\d{2}-\d{2}$/.test(d2 || "")) return dataLonga(d1);
+    try {
+      var a = new Date(d1 + "T12:00:00"), b = new Date(d2 + "T12:00:00");
+      if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) return a.getDate() + " a " + b.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
+      return a.toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) + " a " + b.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
+    } catch (e) { return dataBR(d1) + " a " + dataBR(d2); }
+  }
   function idadeEm(nasc, ref) {
     var a = nasc.split("-").map(Number), b = (ref || new Date().toISOString().slice(0, 10)).split("-").map(Number);
     return b[0] - a[0] - (b[1] < a[1] || (b[1] === a[1] && b[2] < a[2]) ? 1 : 0);
   }
   function cartaoEvento(e) {
     var crianca = e.idadeMin != null || e.idadeMax != null, cheio = e.vagas != null && e.confirmados >= e.vagas, restam = e.vagas != null ? e.vagas - e.confirmados : null;
-    var quando = [dataLonga(e.data), e.horaInicio ? e.horaInicio + (e.horaFim ? " às " + e.horaFim : "") : "", e.local].filter(Boolean).join(" · ");
+    var quando = [periodo(e.data, e.dataFim), e.horaInicio ? e.horaInicio + (e.horaFim ? " às " + e.horaFim : "") : "", e.local].filter(Boolean).join(" · ");
     var faixa = e.publico || (crianca ? "Crianças de " + (e.idadeMin != null ? e.idadeMin : "") + " a " + (e.idadeMax != null ? e.idadeMax : "") + " anos" : "");
     var vagas = cheio ? "As vagas estão preenchidas. Inscreva-se na lista de espera: avisamos se abrir uma vaga." : restam != null && restam <= 5 ? "Últimas " + restam + (restam === 1 ? " vaga." : " vagas.") : "";
     var id = escH(e.id);

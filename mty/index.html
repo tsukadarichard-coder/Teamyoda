@@ -17327,7 +17327,7 @@ async function baixarPlanilhaEvento(ev) {
     "Situação": c.status === "confirmado" ? "Confirmada" : "Lista de espera", "Pagamento": pg.status === "pago" ? "Pago" : pg.status === "isento" ? "Isento" : "Em aberto",
     "Valor pago (R$)": pg.status === "pago" ? (numeroEv(pg.valor) ?? r.valor ?? "") : "", "Data do pagamento": pg.data ? pg.data.split("-").reverse().join("/") : "", "Forma": pg.forma || "",
     "Inscrito em": c.criadoEm ? new Date(c.criadoEm).toLocaleString("pt-BR") : "", "Origem": c.origem === "cliente" ? "Site / link" : "Equipe" }; });
-  const resumo = [["Evento", ev.nome], ["Data", ev.data ? ev.data.split("-").reverse().join("/") : ""], ["Valor da inscrição (R$)", r.valor ?? ""], ["Inscritos", r.inscritos],
+  const resumo = [["Evento", ev.nome], ["Data", ev.data ? ev.data.split("-").reverse().join("/") + (ev.dataFim ? " a " + ev.dataFim.split("-").reverse().join("/") : "") : ""], ["Valor da inscrição (R$)", r.valor ?? ""], ["Inscritos", r.inscritos],
     ["Confirmados", r.confirmados], ["Lista de espera", r.espera], ["Pagos", r.pagos], ["Isentos", r.isentos], ["Em aberto", r.emAberto], ["Recebido (R$)", r.recebido],
     ["A receber dos em aberto (R$)", r.aReceber], ["Custos (R$)", r.custos], ["Resultado até agora (R$)", r.resultado], ["Resultado previsto (R$)", r.previsto]];
   const wb = XLSX.utils.book_new();
@@ -17372,7 +17372,8 @@ function FormEvento({ inicial, aoSalvar, aoCancelar }) {
     if (!f.nome.trim()) { setErro("Dê um nome ao evento."); return; }
     const idadeMin = inteiro(f.idadeMin), idadeMax = inteiro(f.idadeMax);
     if (idadeMin != null && idadeMax != null && idadeMin > idadeMax) { setErro("A idade mínima está maior que a máxima."); return; }
-    aoSalvar({ ...f, nome: f.nome.trim(), local: (f.local || "").trim(), descricao: (f.descricao || "").trim(), publico: (f.publico || "").trim(),
+    if (f.dataFim && f.data && f.dataFim < f.data) { setErro("O último dia está antes da data de início."); return; }
+    aoSalvar({ ...f, dataFim: f.dataFim && f.dataFim !== f.data ? f.dataFim : "", nome: f.nome.trim(), local: (f.local || "").trim(), descricao: (f.descricao || "").trim(), publico: (f.publico || "").trim(),
       vagas: inteiro(f.vagas) || null, valor: numeroEv(f.valor), idadeMin, idadeMax, site: !!f.site, custos: f.custos || [] });
   }
   return (
@@ -17380,6 +17381,7 @@ function FormEvento({ inicial, aoSalvar, aoCancelar }) {
       <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Ex.: Camp de fim de ano" data-ev-nome /></Campo>
       <div className="flex gap-2 flex-wrap">
         <Campo rotulo="Data"><input type="date" style={entrada} value={f.data} onChange={(e) => set("data", e.target.value)} data-ev-data /></Campo>
+        <Campo rotulo="Último dia" nota="Só se durar mais de um dia"><input type="date" style={entrada} value={f.dataFim || ""} min={f.data || undefined} onChange={(e) => set("dataFim", e.target.value)} data-ev-data-fim /></Campo>
         <Campo rotulo="Início"><input type="time" style={entrada} value={f.horaInicio} onChange={(e) => set("horaInicio", e.target.value)} /></Campo>
         <Campo rotulo="Fim"><input type="time" style={entrada} value={f.horaFim} onChange={(e) => set("horaFim", e.target.value)} /></Campo>
       </div>
@@ -17546,7 +17548,7 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
               {aberto.site && <Etiqueta cor={C.quadra}>no site</Etiqueta>}
             </div>
             <p style={{ ...prosa, color: C.grafite }}>
-              {aberto.data ? formatarDataLonga(aberto.data) : "Sem data"}{aberto.horaInicio ? " · " + aberto.horaInicio + (aberto.horaFim ? "–" + aberto.horaFim : "") : ""}{aberto.local ? " · " + aberto.local : ""}
+              {aberto.data ? formatarDataLonga(aberto.data) + (aberto.dataFim ? " a " + formatarDataLonga(aberto.dataFim) : "") : "Sem data"}{aberto.horaInicio ? " · " + aberto.horaInicio + (aberto.horaFim ? "–" + aberto.horaFim : "") : ""}{aberto.local ? " · " + aberto.local : ""}
             </p>
             <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
               {[aberto.publico, aberto.vagas != null ? r.confirmados + "/" + aberto.vagas + " vagas preenchidas" : "vagas sem limite", r.valor != null ? "inscrição " + reaisEv(r.valor) : "sem valor definido", aberto.inscricoesAte ? "inscrições até " + aberto.inscricoesAte.split("-").reverse().join("/") : ""].filter(Boolean).join(" · ")}
@@ -17651,7 +17653,7 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
                     {novas > 0 && <Etiqueta cor={C.saibro}>{novas} nova{novas > 1 ? "s" : ""}</Etiqueta>}
                   </div>
                   <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
-                    {ev.data ? formatarDataLonga(ev.data) : "Sem data"}{ev.horaInicio ? " · " + ev.horaInicio : ""}
+                    {ev.data ? formatarDataLonga(ev.data) + (ev.dataFim ? " a " + formatarDataLonga(ev.dataFim) : "") : "Sem data"}{ev.horaInicio ? " · " + ev.horaInicio : ""}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>

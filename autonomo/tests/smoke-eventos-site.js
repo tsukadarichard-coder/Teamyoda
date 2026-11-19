@@ -20,7 +20,7 @@ const F = require(fx + "inscricao-torneio-evento.js");
 const ano = new Date().getFullYear(), dataEv = ano + "-12-13";
 const CHAVE = "orgs/team-yoda/dados/mty:eventos:v1";
 store[CHAVE] = { value: JSON.stringify([
-  { id: "ev1", nome: "Camp de Fim de Ano Team Yoda", data: dataEv, horaInicio: "09:00", horaFim: "12:00", local: "Cooper Tênis", tipo: "clinica", vagas: 20, ativo: true, site: true,
+  { id: "ev1", nome: "Camp de Fim de Ano Team Yoda", data: dataEv, dataFim: ano + "-12-18", horaInicio: "09:00", horaFim: "12:00", local: "Cooper Tênis", tipo: "clinica", vagas: 20, ativo: true, site: true,
     descricao: "Uma manhã de tênis, jogos e brincadeiras.\nLeve garrafinha e protetor solar.", publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, valor: 180, cartaz: "/assets/foto-forehand.jpg", convidados: [] },
   { id: "ev2", nome: "Noite social (só no app)", data: dataEv, ativo: true, convidados: [] },
 ]) };
@@ -65,7 +65,7 @@ const srvPainel = http.createServer((q, r) => { const u = q.url.split("?")[0]; i
   await p.waitForSelector('#eventos:not([hidden]) [data-evento="ev1"]', { timeout: 20000 });
   assert.strictEqual(await p.locator("[data-evento]").count(), 1, "só o evento marcado para o site");
   const t = await p.innerText("#eventos");
-  assert(/Camp de Fim de Ano Team Yoda/.test(t) && /Crianças de 8 a 12 anos/.test(t) && /Cooper Tênis/.test(t) && /09:00 às 12:00/.test(t), t);
+  assert(/Camp de Fim de Ano Team Yoda/.test(t) && /Crianças de 8 a 12 anos/.test(t) && /Cooper Tênis/.test(t) && /09:00 às 12:00/.test(t) && /13 a 18 de dezembro/.test(t), t);
   assert(!/R\$/.test(await p.content()) && !/R\$|180/.test(t), "nenhum valor na página");
   assert(await p.isVisible('#menuBt') && (await p.locator("[data-link-eventos]").first().getAttribute("hidden")) === null, "link Eventos no menu");
   const sem = await p.evaluate(() => document.documentElement.scrollWidth); assert(sem <= 390, "sem rolagem lateral: " + sem);
