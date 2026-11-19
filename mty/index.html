@@ -284,7 +284,7 @@ const storageLocal = {
    Todos os professores gravam a MESMA lista inteira. Antes, quem gravava por último apagava o que os
    outros tinham registrado, e cada um só via o que fez no próprio aparelho. Agora cada gravação lê a
    nuvem, junta (sync-listas.js) e grava o resultado; e a tela ouve a nuvem e recebe o que os outros fazem. */
-const SINC = { listas: new Set(["mty:alunos:v2", "mty:turmas:v1"]), base: {}, aoMudar: {}, local: {}, pronto: {} };
+const SINC = { listas: new Set(["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1"]), base: {}, aoMudar: {}, local: {}, pronto: {} };
 if (db && window.MTYSync) {
   const getOrig = storageFirestore.get, setOrig = storageFirestore.set;
   const lerLista = (v) => { try { const l = JSON.parse(v); return Array.isArray(l) ? l : null; } catch { return null; } };
@@ -17278,124 +17278,339 @@ function TelaTorneios({ torneios, setTorneios, orgAtual }) {
   );
 }
 
+/* ── eventos ──
+   Clínicas, noites sociais, exibições e eventos para crianças, com lista de inscrições, vagas e lista de espera.
+   Site do Team Yoda (19/11/2026, pedido do Richard): "Mostrar no site" põe o evento na página principal (mty/portal/), com
+   cartaz e formulário de inscrição (responsável, WhatsApp, e-mail, criança, nascimento, já é aluno, observações e a
+   autorização do responsável; a idade é conferida pela faixa do evento). As inscrições chegam aqui e no celular da
+   coordenação. Pagamento: o app NÃO cobra; a gestão combina por fora (Pix, link) e marca cada inscrição como pendente, paga
+   ou isenta, com valor, data e forma. Custos do evento e o resumo (recebido, em aberto, custos e resultado) ficam aqui, com
+   a planilha para baixar (Excel). */
+const FORMAS_PAGAMENTO_EVENTO = ["Pix", "Cartão", "Dinheiro", "Transferência", "Outro"];
+const reaisEv = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+/* "150", "150,50", "1.500,50" ou "1500.5" → número (vazio → null) */
+function numeroEv(v) {
+  let t = String(v == null ? "" : v).trim().replace(/[R$\s]/g, "");
+  if (!t) return null;
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+const idadeEv = (nasc, data) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nasc || "")) return null;
+  const ref = /^\d{4}-\d{2}-\d{2}$/.test(data || "") ? data : new Date().toISOString().slice(0, 10);
+  const [an, mn, dn] = nasc.split("-").map(Number), [a, m, d] = ref.split("-").map(Number);
+  return a - an - (m < mn || (m === mn && d < dn) ? 1 : 0);
+};
+const pagamentoEv = (c) => (c && c.pagamento) || { status: "pendente" };
+function resumoEvento(ev) {
+  const lista = ev.convidados || [], valor = numeroEv(ev.valor);
+  const confirmados = lista.filter((c) => c.status === "confirmado"), espera = lista.filter((c) => c.status !== "confirmado");
+  const pagos = lista.filter((c) => pagamentoEv(c).status === "pago"), isentos = lista.filter((c) => pagamentoEv(c).status === "isento");
+  const emAberto = confirmados.filter((c) => !["pago", "isento"].includes(pagamentoEv(c).status));
+  const recebido = pagos.reduce((s, c) => s + (numeroEv(pagamentoEv(c).valor) ?? valor ?? 0), 0);
+  const aReceber = emAberto.length * (valor || 0);
+  const custos = (ev.custos || []).reduce((s, x) => s + (numeroEv(x.valor) || 0), 0);
+  return { inscritos: lista.length, confirmados: confirmados.length, espera: espera.length, pagos: pagos.length, isentos: isentos.length, emAberto: emAberto.length,
+    recebido, aReceber, custos, resultado: recebido - custos, previsto: recebido + aReceber - custos, valor };
+}
+function textoZapEvento(ev, c) {
+  const resp = String(c.nomeContato || "").split(/\s+/)[0], valor = numeroEv(ev.valor);
+  return "Olá, " + resp + "! Recebemos a inscrição" + (c.criancaNome ? " de " + c.criancaNome : "") + " no " + ev.nome + (ev.data ? " (" + ev.data.split("-").reverse().join("/") + ")" : "") + "." +
+    (c.status !== "confirmado" ? " No momento as vagas estão preenchidas e a inscrição está na lista de espera; avisamos se abrir uma vaga." : valor ? " Para garantir a vaga, o valor é " + reaisEv(valor) + ". Seguem os dados para o pagamento: " : "");
+}
+async function baixarPlanilhaEvento(ev) {
+  const XLSX = await carregarLeitorPlanilha(), r = resumoEvento(ev), sim = { sim: "Sim", nao: "Não" };
+  const insc = (ev.convidados || []).map((c) => { const pg = pagamentoEv(c); return {
+    "Criança": c.criancaNome || "", "Nascimento": c.criancaNascimento ? c.criancaNascimento.split("-").reverse().join("/") : "", "Idade no evento": idadeEv(c.criancaNascimento, ev.data) ?? "",
+    "Responsável": c.nomeContato || "", "WhatsApp": c.telefoneContato || "", "E-mail": c.email || "", "Já é aluno": sim[c.jaAluno] || "", "Observações": c.observacoes || "",
+    "Situação": c.status === "confirmado" ? "Confirmada" : "Lista de espera", "Pagamento": pg.status === "pago" ? "Pago" : pg.status === "isento" ? "Isento" : "Em aberto",
+    "Valor pago (R$)": pg.status === "pago" ? (numeroEv(pg.valor) ?? r.valor ?? "") : "", "Data do pagamento": pg.data ? pg.data.split("-").reverse().join("/") : "", "Forma": pg.forma || "",
+    "Inscrito em": c.criadoEm ? new Date(c.criadoEm).toLocaleString("pt-BR") : "", "Origem": c.origem === "cliente" ? "Site / link" : "Equipe" }; });
+  const resumo = [["Evento", ev.nome], ["Data", ev.data ? ev.data.split("-").reverse().join("/") : ""], ["Valor da inscrição (R$)", r.valor ?? ""], ["Inscritos", r.inscritos],
+    ["Confirmados", r.confirmados], ["Lista de espera", r.espera], ["Pagos", r.pagos], ["Isentos", r.isentos], ["Em aberto", r.emAberto], ["Recebido (R$)", r.recebido],
+    ["A receber dos em aberto (R$)", r.aReceber], ["Custos (R$)", r.custos], ["Resultado até agora (R$)", r.resultado], ["Resultado previsto (R$)", r.previsto]];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), "Resumo");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(insc.length ? insc : [{ "Criança": "" }]), "Inscrições");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((ev.custos || []).map((x) => ({ "Custo": x.descricao, "Valor (R$)": numeroEv(x.valor) || 0 })).concat([{ "Custo": "Total", "Valor (R$)": r.custos }])), "Custos");
+  XLSX.writeFile(wb, ("Evento " + ev.nome).replace(/[\\/:*?"<>|]/g, "").slice(0, 80) + ".xlsx");
+}
+/* cartaz: reduz no aparelho (até 1400 px) e envia para a function do evento, que guarda e serve a imagem */
+async function enviarCartazEvento(arquivo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw new Error("Entre com a conta da academia para enviar o cartaz.");
+  const img = await new Promise((ok, falha) => { const u = URL.createObjectURL(arquivo), i = new Image(); i.onload = () => ok(i); i.onerror = () => falha(new Error("Não deu para abrir a imagem.")); i.src = u; });
+  let dados = "";
+  for (const [lado, q] of [[1400, 0.82], [1100, 0.75], [900, 0.68]]) {
+    const k = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    dados = c.toDataURL("image/jpeg", q);
+    if (dados.length < 900000) break;
+  }
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/inscricao-torneio-evento", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ acao: "imagem", dados }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || "Não deu para enviar o cartaz agora.");
+  return j.url;
+}
+function FormEvento({ inicial, aoSalvar, aoCancelar }) {
+  const [f, setF] = useState(() => ({ ...novoEvento(), ...(inicial || {}),
+    vagas: inicial && inicial.vagas != null ? String(inicial.vagas) : "", valor: inicial && inicial.valor != null ? String(inicial.valor).replace(".", ",") : "",
+    idadeMin: inicial && inicial.idadeMin != null ? String(inicial.idadeMin) : "", idadeMax: inicial && inicial.idadeMax != null ? String(inicial.idadeMax) : "" }));
+  const [enviando, setEnviando] = useState(false), [erro, setErro] = useState("");
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const inteiro = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 0 ? n : null; };
+  async function escolherCartaz(e) {
+    const arq = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!arq) return;
+    setErro(""); setEnviando(true);
+    try { set("cartaz", await enviarCartazEvento(arq)); } catch (x) { setErro(String(x.message || x)); }
+    setEnviando(false);
+  }
+  function salvar() {
+    if (!f.nome.trim()) { setErro("Dê um nome ao evento."); return; }
+    const idadeMin = inteiro(f.idadeMin), idadeMax = inteiro(f.idadeMax);
+    if (idadeMin != null && idadeMax != null && idadeMin > idadeMax) { setErro("A idade mínima está maior que a máxima."); return; }
+    aoSalvar({ ...f, nome: f.nome.trim(), local: (f.local || "").trim(), descricao: (f.descricao || "").trim(), publico: (f.publico || "").trim(),
+      vagas: inteiro(f.vagas) || null, valor: numeroEv(f.valor), idadeMin, idadeMax, site: !!f.site, custos: f.custos || [] });
+  }
+  return (
+    <div data-form-evento className="mt-3">
+      <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Ex.: Camp de fim de ano" data-ev-nome /></Campo>
+      <div className="flex gap-2 flex-wrap">
+        <Campo rotulo="Data"><input type="date" style={entrada} value={f.data} onChange={(e) => set("data", e.target.value)} data-ev-data /></Campo>
+        <Campo rotulo="Início"><input type="time" style={entrada} value={f.horaInicio} onChange={(e) => set("horaInicio", e.target.value)} /></Campo>
+        <Campo rotulo="Fim"><input type="time" style={entrada} value={f.horaFim} onChange={(e) => set("horaFim", e.target.value)} /></Campo>
+      </div>
+      <Campo rotulo="Local" nota="Opcional"><input style={entrada} value={f.local} onChange={(e) => set("local", e.target.value)} /></Campo>
+      <Campo rotulo="Tipo">
+        <select style={entrada} value={f.tipo} onChange={(e) => set("tipo", e.target.value)}>
+          {Object.keys(TIPOS_EVENTO).map((t) => <option key={t} value={t}>{TIPOS_EVENTO[t]}</option>)}
+        </select>
+      </Campo>
+      <Campo rotulo="Descrição" nota="Aparece no site: o que é, o que a criança vai fazer, o que levar.">
+        <textarea style={{ ...entrada, minHeight: 90 }} value={f.descricao} onChange={(e) => set("descricao", e.target.value)} />
+      </Campo>
+      <Campo rotulo="Para quem é" nota="Texto curto que aparece no site. Ex.: Crianças de 8 a 12 anos">
+        <input style={entrada} value={f.publico || ""} onChange={(e) => set("publico", e.target.value)} />
+      </Campo>
+      <div className="flex gap-2 flex-wrap">
+        <Campo rotulo="Idade mínima" nota="Para evento de criança"><input type="number" min="0" style={{ ...entrada, maxWidth: 110 }} value={f.idadeMin} onChange={(e) => set("idadeMin", e.target.value)} data-ev-idade-min /></Campo>
+        <Campo rotulo="Idade máxima"><input type="number" min="0" style={{ ...entrada, maxWidth: 110 }} value={f.idadeMax} onChange={(e) => set("idadeMax", e.target.value)} data-ev-idade-max /></Campo>
+        <Campo rotulo="Vagas" nota="Em branco = sem limite"><input type="number" min="1" style={{ ...entrada, maxWidth: 110 }} value={f.vagas} onChange={(e) => set("vagas", e.target.value)} data-ev-vagas /></Campo>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <Campo rotulo="Inscrições até" nota="Opcional: depois desse dia o formulário fecha sozinho"><input type="date" style={entrada} value={f.inscricoesAte || ""} onChange={(e) => set("inscricoesAte", e.target.value)} /></Campo>
+        <Campo rotulo="Valor da inscrição (R$)" nota="Só para o controle: não aparece no site"><input inputMode="decimal" style={{ ...entrada, maxWidth: 140 }} value={f.valor} onChange={(e) => set("valor", e.target.value)} placeholder="0,00" data-ev-valor /></Campo>
+      </div>
+      <Campo rotulo="Cartaz" nota="Imagem do evento para o site (JPEG ou PNG)">
+        <div className="flex gap-3 items-center flex-wrap">
+          {f.cartaz && <img src={f.cartaz} alt="Cartaz do evento" style={{ height: 120, width: "auto", border: "1px solid " + C.linha, borderRadius: 6 }} />}
+          <label style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, cursor: "pointer" }}>
+            {enviando ? "Enviando…" : f.cartaz ? "Trocar o cartaz" : "Escolher o cartaz"}
+            <input type="file" accept="image/*" onChange={escolherCartaz} style={{ display: "none" }} disabled={enviando} />
+          </label>
+          {f.cartaz && <button type="button" onClick={() => set("cartaz", "")} style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: "none", border: "none", cursor: "pointer" }}>Tirar o cartaz</button>}
+        </div>
+      </Campo>
+      <label className="flex items-center gap-2 mb-4" style={{ ...prosa, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+        <input type="checkbox" checked={!!f.site} onChange={(e) => set("site", e.target.checked)} data-ev-site /> Mostrar no site do Team Yoda (teamyoda.com.br), com o formulário de inscrição
+      </label>
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#B3261E", marginBottom: 8 }}>{erro}</p>}
+      <div className="flex gap-2 flex-wrap">
+        <Botao pequeno onClick={salvar} disabled={enviando}>{inicial ? "Salvar alterações" : "Criar evento"}</Botao>
+        {aoCancelar && <Botao pequeno variante="vazio" onClick={aoCancelar}>Cancelar</Botao>}
+      </div>
+    </div>
+  );
+}
+function InscricaoEventoCartao({ ev, c, aoMudar, aoRemover }) {
+  const pg = pagamentoEv(c), idade = idadeEv(c.criancaNascimento, ev.data), fone = numeroWhatsApp(c.telefoneContato);
+  const mudarPg = (patch) => aoMudar({ pagamento: { ...pg, ...patch } });
+  const corPg = pg.status === "pago" ? C.quadra : pg.status === "isento" ? C.grafite : C.saibro;
+  return (
+    <div data-inscricao-evento={c.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + corPg, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
+      <div className="flex items-start justify-between gap-3">
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{c.criancaNome || c.nomeContato}{idade != null ? " · " + idade + " anos" : ""}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+            {c.criancaNome ? "Responsável: " + c.nomeContato + " · " : ""}{c.telefoneContato}{c.email ? " · " + c.email : ""}
+            {c.jaAluno === "sim" ? " · já é aluno" : c.jaAluno === "nao" ? " · ainda não é aluno" : ""}{c.origem === "cliente" ? " · pelo site" : ""}
+          </p>
+          {c.observacoes && <p style={{ ...prosa, fontSize: 12.5, marginTop: 2 }}><b>Observações:</b> {c.observacoes}</p>}
+        </div>
+        <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+          <button type="button" onClick={() => aoMudar({ status: c.status === "confirmado" ? "espera" : "confirmado" })}
+            style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: c.status === "confirmado" ? C.quadra : C.saibro, cursor: "pointer", border: "none", background: "none" }}>
+            {c.status === "confirmado" ? "confirmada" : "lista de espera"}
+          </button>
+          <button type="button" onClick={aoRemover} title="Remover inscrição" aria-label="Remover inscrição" style={iconeEstilo}>×</button>
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap items-end mt-2">
+        <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Pagamento
+          <select value={pg.status} onChange={(e) => mudarPg({ status: e.target.value, ...(e.target.value === "pago" && !pg.data ? { data: new Date().toISOString().slice(0, 10) } : {}) })} style={{ ...entrada, display: "block", minWidth: 130, padding: "6px 8px" }} data-pagamento-status>
+            <option value="pendente">Em aberto</option><option value="pago">Pago</option><option value="isento">Isento</option>
+          </select>
+        </label>
+        {pg.status === "pago" && <>
+          <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Valor (R$)
+            <input inputMode="decimal" defaultValue={pg.valor != null ? String(pg.valor).replace(".", ",") : ev.valor != null ? String(ev.valor).replace(".", ",") : ""} onBlur={(e) => mudarPg({ valor: numeroEv(e.target.value) })} style={{ ...entrada, display: "block", width: 100, padding: "6px 8px" }} data-pagamento-valor />
+          </label>
+          <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Data
+            <input type="date" value={pg.data || ""} onChange={(e) => mudarPg({ data: e.target.value })} style={{ ...entrada, display: "block", padding: "6px 8px" }} />
+          </label>
+          <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Forma
+            <select value={pg.forma || ""} onChange={(e) => mudarPg({ forma: e.target.value })} style={{ ...entrada, display: "block", padding: "6px 8px" }}>
+              <option value="">—</option>{FORMAS_PAGAMENTO_EVENTO.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </label>
+        </>}
+        {fone && <a href={"https://wa.me/" + fone + "?text=" + encodeURIComponent(textoZapEvento(ev, c))} target="_blank" rel="noopener" data-zap-inscricao
+          style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.quadra, marginLeft: "auto" }}>WhatsApp →</a>}
+      </div>
+    </div>
+  );
+}
 function TelaEventos({ eventos, setEventos, orgAtual }) {
   const [criando, setCriando] = useState(false);
-  const [nomeNovo, setNomeNovo] = useState("");
-  const [dataNovo, setDataNovo] = useState("");
-  const [horaInicioNovo, setHoraInicioNovo] = useState("");
-  const [horaFimNovo, setHoraFimNovo] = useState("");
-  const [localNovo, setLocalNovo] = useState("");
-  const [tipoNovo, setTipoNovo] = useState("social");
-  const [descricaoNovo, setDescricaoNovo] = useState("");
-  const [vagasNovo, setVagasNovo] = useState("");
+  const [editando, setEditando] = useState(false);
   const [abertoId, setAbertoId] = useState(null);
+  const [filtro, setFiltro] = useState("todas");
   const [nomeConvidado, setNomeConvidado] = useState("");
   const [telefoneConvidado, setTelefoneConvidado] = useState("");
+  const [criancaConvidado, setCriancaConvidado] = useState("");
+  const [custoDesc, setCustoDesc] = useState(""), [custoValor, setCustoValor] = useState("");
+  const [baixando, setBaixando] = useState(false), [erroPlanilha, setErroPlanilha] = useState("");
 
   const linkInscricao = orgAtual ? location.origin + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
-
-  function criarEvento() {
-    if (!nomeNovo.trim()) return;
-    const vagasNum = vagasNovo.trim() ? parseInt(vagasNovo, 10) : null;
-    setEventos([...eventos, {
-      ...novoEvento(), nome: nomeNovo.trim(), data: dataNovo, horaInicio: horaInicioNovo, horaFim: horaFimNovo,
-      local: localNovo.trim(), tipo: tipoNovo, descricao: descricaoNovo.trim(),
-      vagas: Number.isFinite(vagasNum) ? vagasNum : null,
-    }]);
-    setNomeNovo(""); setDataNovo(""); setHoraInicioNovo(""); setHoraFimNovo(""); setLocalNovo("");
-    setTipoNovo("social"); setDescricaoNovo(""); setVagasNovo(""); setCriando(false);
-  }
+  const mudarEvento = (id, fn) => setEventos((lista) => lista.map((e) => (e.id === id ? fn(e) : e)));
   function removerEvento(id) {
-    if (!confirm("Excluir este evento? Essa ação não pode ser desfeita.")) return;
+    if (!confirm("Excluir este evento? As inscrições, os pagamentos marcados e os custos dele vão junto. Essa ação não pode ser desfeita.")) return;
     setEventos(eventos.filter((e) => e.id !== id));
     if (abertoId === id) setAbertoId(null);
   }
-  function alternarAtivo(id) {
-    setEventos(eventos.map((e) => (e.id === id ? { ...e, ativo: !e.ativo } : e)));
-  }
-  function atualizarConvidados(eventoId, convidados) {
-    setEventos(eventos.map((e) => (e.id === eventoId ? { ...e, convidados } : e)));
-  }
-
   const aberto = abertoId ? eventos.find((e) => e.id === abertoId) : null;
-  const confirmados = aberto ? aberto.convidados.filter((c) => c.status === "confirmado").length : 0;
-  const vagasRestantes = aberto && aberto.vagas != null ? aberto.vagas - confirmados : null;
+  /* abrir o evento conta como ver as inscrições novas (o sino do app para de contar) */
+  useEffect(() => {
+    if (aberto && (aberto.convidados || []).some((c) => c.vistoPeloStaff === false))
+      mudarEvento(aberto.id, (e) => ({ ...e, convidados: e.convidados.map((c) => (c.vistoPeloStaff === false ? { ...c, vistoPeloStaff: true } : c)) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abertoId, aberto && (aberto.convidados || []).length]);
+  const mudarInscricao = (cid, patch) => mudarEvento(aberto.id, (e) => ({ ...e, convidados: e.convidados.map((c) => (c.id === cid ? { ...c, ...patch } : c)) }));
 
-  function adicionarConvidado() {
-    if (!nomeConvidado.trim() || !telefoneConvidado.trim() || !aberto) return;
-    const status = aberto.vagas != null && vagasRestantes <= 0 ? "espera" : "confirmado";
-    const novo = { ...novaInscricaoEvento(), nomeContato: nomeConvidado.trim(), telefoneContato: telefoneConvidado.trim(), status };
-    atualizarConvidados(aberto.id, [...aberto.convidados, novo]);
-    setNomeConvidado(""); setTelefoneConvidado("");
-  }
-  function removerConvidado(id) {
-    if (!aberto) return;
-    atualizarConvidados(aberto.id, aberto.convidados.filter((c) => c.id !== id));
-  }
-  function alternarStatusConvidado(id) {
-    if (!aberto) return;
-    atualizarConvidados(aberto.id, aberto.convidados.map((c) => (c.id === id ? { ...c, status: c.status === "confirmado" ? "espera" : "confirmado" } : c)));
+  if (aberto && editando) {
+    return (
+      <div>
+        <button onClick={() => setEditando(false)} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← {aberto.nome}</button>
+        <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Editar evento</h1>
+        <FormEvento inicial={aberto} aoCancelar={() => setEditando(false)} aoSalvar={(ev) => { mudarEvento(aberto.id, (e) => ({ ...e, ...ev, id: e.id, convidados: e.convidados })); setEditando(false); }} />
+      </div>
+    );
   }
 
   if (aberto) {
+    const r = resumoEvento(aberto), lista = aberto.convidados || [];
+    const vagasRestantes = aberto.vagas != null ? aberto.vagas - r.confirmados : null;
+    const filtrada = lista.filter((c) => filtro === "todas" ? true : filtro === "espera" ? c.status !== "confirmado"
+      : filtro === "pagas" ? pagamentoEv(c).status === "pago" : c.status === "confirmado" && !["pago", "isento"].includes(pagamentoEv(c).status));
+    function adicionarConvidado() {
+      if (!nomeConvidado.trim() || !telefoneConvidado.trim()) return;
+      const status = aberto.vagas != null && vagasRestantes <= 0 ? "espera" : "confirmado";
+      const novo = { ...novaInscricaoEvento(), nomeContato: nomeConvidado.trim(), telefoneContato: telefoneConvidado.trim(), criancaNome: criancaConvidado.trim(), status, pagamento: { status: "pendente" } };
+      mudarEvento(aberto.id, (e) => ({ ...e, convidados: [...e.convidados, novo] }));
+      setNomeConvidado(""); setTelefoneConvidado(""); setCriancaConvidado("");
+    }
+    function adicionarCusto() {
+      const v = numeroEv(custoValor);
+      if (!custoDesc.trim() || v == null) return;
+      mudarEvento(aberto.id, (e) => ({ ...e, custos: [...(e.custos || []), { id: "custo-" + Date.now().toString(36), descricao: custoDesc.trim(), valor: v }] }));
+      setCustoDesc(""); setCustoValor("");
+    }
+    const caixa = (rotulo, valor, cor, chave) => (
+      <div data-resumo-evento={chave} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, textTransform: "uppercase", letterSpacing: ".04em", fontWeight: 700 }}>{rotulo}</p>
+        <p style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: cor || C.tinta, marginTop: 2 }}>{valor}</p>
+      </div>
+    );
     return (
-      <div>
-        <button onClick={() => setAbertoId(null)} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os eventos</button>
-        <div className="flex items-center gap-3 flex-wrap mb-2">
-          <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>{aberto.nome}</h1>
-          <Etiqueta>{TIPOS_EVENTO[aberto.tipo] || aberto.tipo}</Etiqueta>
+      <div data-evento-aberto={aberto.id}>
+        <button onClick={() => { setAbertoId(null); setFiltro("todas"); }} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os eventos</button>
+        <div className="flex gap-4 flex-wrap items-start mb-3">
+          {aberto.cartaz && <img src={aberto.cartaz} alt="Cartaz do evento" style={{ width: 120, height: "auto", borderRadius: 6, border: "1px solid " + C.linha }} />}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div className="flex items-center gap-3 flex-wrap mb-1">
+              <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>{aberto.nome}</h1>
+              <Etiqueta>{TIPOS_EVENTO[aberto.tipo] || aberto.tipo}</Etiqueta>
+              {aberto.site && <Etiqueta cor={C.quadra}>no site</Etiqueta>}
+            </div>
+            <p style={{ ...prosa, color: C.grafite }}>
+              {aberto.data ? formatarDataLonga(aberto.data) : "Sem data"}{aberto.horaInicio ? " · " + aberto.horaInicio + (aberto.horaFim ? "–" + aberto.horaFim : "") : ""}{aberto.local ? " · " + aberto.local : ""}
+            </p>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
+              {[aberto.publico, aberto.vagas != null ? r.confirmados + "/" + aberto.vagas + " vagas preenchidas" : "vagas sem limite", r.valor != null ? "inscrição " + reaisEv(r.valor) : "sem valor definido", aberto.inscricoesAte ? "inscrições até " + aberto.inscricoesAte.split("-").reverse().join("/") : ""].filter(Boolean).join(" · ")}
+            </p>
+          </div>
         </div>
-        <p style={{ ...prosa, color: C.grafite, marginBottom: 4 }}>
-          {aberto.data ? formatarDataLonga(aberto.data) : ""}
-          {aberto.horaInicio ? " · " + aberto.horaInicio + (aberto.horaFim ? "–" + aberto.horaFim : "") : ""}
-          {aberto.local ? " · " + aberto.local : ""}
-        </p>
-        {aberto.descricao && <p style={{ ...prosa, marginBottom: 14 }}>{aberto.descricao}</p>}
+        {aberto.descricao && <p style={{ ...prosa, marginBottom: 12, whiteSpace: "pre-line" }}>{aberto.descricao}</p>}
+        <div className="flex gap-2 flex-wrap mb-5">
+          <Botao pequeno onClick={() => setEditando(true)}>Editar evento</Botao>
+          <Botao pequeno variante="vazio" onClick={() => mudarEvento(aberto.id, (e) => ({ ...e, ativo: !e.ativo }))}>{aberto.ativo ? "Encerrar inscrições" : "Reabrir inscrições"}</Botao>
+          <Botao pequeno variante="vazio" onClick={() => mudarEvento(aberto.id, (e) => ({ ...e, site: !e.site }))}>{aberto.site ? "Tirar do site" : "Mostrar no site"}</Botao>
+          <Botao pequeno variante="vazio" disabled={baixando} onClick={async () => { setErroPlanilha(""); setBaixando(true); try { await baixarPlanilhaEvento(aberto); } catch (e) { setErroPlanilha(String(e.message || e)); } setBaixando(false); }}>{baixando ? "Preparando…" : "Baixar planilha (Excel)"}</Botao>
+        </div>
+        {erroPlanilha && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#B3261E", marginBottom: 8 }}>{erroPlanilha}</p>}
 
-        {aberto.vagas != null && (
-          <div className="mb-5">
-            <Etiqueta cor={vagasRestantes <= 0 ? C.saibro : C.grafite}>{confirmados}/{aberto.vagas} vagas preenchidas</Etiqueta>
+        <div data-resumo-financeiro style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8, marginBottom: 6 }}>
+          {caixa("Inscrições", r.inscritos + (r.espera ? " (" + r.espera + " na espera)" : ""), null, "inscritos")}
+          {caixa("Pagas", r.pagos + (r.isentos ? " + " + r.isentos + " isentas" : ""), C.quadra, "pagos")}
+          {caixa("Em aberto", r.emAberto + (r.aReceber ? " · " + reaisEv(r.aReceber) : ""), r.emAberto ? C.saibro : null, "aberto")}
+          {caixa("Recebido", reaisEv(r.recebido), C.quadra, "recebido")}
+          {caixa("Custos", reaisEv(r.custos), null, "custos")}
+          {caixa("Resultado até agora", reaisEv(r.resultado), r.resultado < 0 ? "#B3261E" : C.quadra, "resultado")}
+          {caixa("Resultado previsto", reaisEv(r.previsto), r.previsto < 0 ? "#B3261E" : null, "previsto")}
+        </div>
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>O app não cobra: combine o pagamento pelo WhatsApp e marque aqui. "Previsto" conta que todas as confirmadas em aberto paguem o valor da inscrição.</p>
+
+        <div className="flex items-center justify-between gap-2 flex-wrap" style={{ margin: "8px 0" }}>
+          <p style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 15 }}>Inscrições ({lista.length})</p>
+          <div className="flex gap-1 flex-wrap">
+            {[["todas", "Todas"], ["aberto", "Em aberto"], ["pagas", "Pagas"], ["espera", "Lista de espera"]].map(([v, rot]) => (
+              <button key={v} type="button" onClick={() => setFiltro(v)} data-filtro-inscricoes={v}
+                style={{ ...prosa, fontSize: 12.5, fontWeight: 700, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (filtro === v ? C.tinta : C.linha), background: filtro === v ? C.tinta : C.cal, color: filtro === v ? C.papel : C.tinta }}>{rot}</button>
+            ))}
           </div>
-        )}
-
-        <Botao pequeno variante={aberto.ativo ? "vazio" : "cheio"} onClick={() => alternarAtivo(aberto.id)}>
-          {aberto.ativo ? "Encerrar inscrições" : "Reabrir inscrições"}
-        </Botao>
-
-        <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 14, margin: "20px 0 8px" }}>Lista de presença ({aberto.convidados.length})</div>
-        {aberto.convidados.length === 0 && (
-          <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Ninguém confirmado ainda.</p>
-        )}
-        {aberto.convidados.map((c) => (
-          <div key={c.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
-            <div>
-              <div style={{ ...prosa, fontSize: 13 }}>{c.nomeContato}</div>
-              <div style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
-                {c.telefoneContato}{c.origem === "cliente" ? " · inscrição pelo cliente" : ""}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => alternarStatusConvidado(c.id)}
-                style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
-                  color: c.status === "confirmado" ? C.quadra : C.saibro, cursor: "pointer", border: "none", background: "none" }}>
-                {c.status === "confirmado" ? "confirmado" : "lista de espera"}
-              </button>
-              <button onClick={() => removerConvidado(c.id)} title="Remover" style={iconeEstilo}>×</button>
-            </div>
-          </div>
+        </div>
+        {!lista.length && <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Ninguém inscrito ainda.{aberto.site ? " O formulário está no site." : ""}</p>}
+        {lista.length > 0 && !filtrada.length && <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Nenhuma inscrição neste filtro.</p>}
+        {filtrada.map((c) => (
+          <InscricaoEventoCartao key={c.id} ev={aberto} c={c} aoMudar={(patch) => mudarInscricao(c.id, patch)}
+            aoRemover={() => { if (confirm("Remover esta inscrição?")) mudarEvento(aberto.id, (e) => ({ ...e, convidados: e.convidados.filter((x) => x.id !== c.id) })); }} />
         ))}
         <div className="flex gap-2 mt-3 mb-8 flex-wrap items-center">
-          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={nomeConvidado} onChange={(e) => setNomeConvidado(e.target.value)} placeholder="Nome" />
-          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={telefoneConvidado} onChange={(e) => setTelefoneConvidado(e.target.value)} placeholder="Telefone" />
-          <Botao pequeno onClick={adicionarConvidado} disabled={!nomeConvidado.trim() || !telefoneConvidado.trim()}>+ Adicionar convidado</Botao>
+          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={criancaConvidado} onChange={(e) => setCriancaConvidado(e.target.value)} placeholder="Criança (opcional)" />
+          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={nomeConvidado} onChange={(e) => setNomeConvidado(e.target.value)} placeholder="Responsável" />
+          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={telefoneConvidado} onChange={(e) => setTelefoneConvidado(e.target.value)} placeholder="WhatsApp" />
+          <Botao pequeno onClick={adicionarConvidado} disabled={!nomeConvidado.trim() || !telefoneConvidado.trim()}>+ Adicionar inscrição</Botao>
         </div>
 
-        <div className="mt-8">
-          <button onClick={() => removerEvento(aberto.id)}
-            style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
-            Excluir evento
-          </button>
+        <p style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Custos do evento</p>
+        {(aberto.custos || []).map((x) => (
+          <div key={x.id} data-custo-evento={x.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "7px 11px" }}>
+            <span style={{ ...prosa, fontSize: 13.5 }}>{x.descricao}</span>
+            <span className="flex items-center gap-2"><b style={{ ...prosa, fontSize: 13.5 }}>{reaisEv(x.valor)}</b>
+              <button type="button" onClick={() => mudarEvento(aberto.id, (e) => ({ ...e, custos: (e.custos || []).filter((y) => y.id !== x.id) }))} title="Remover custo" aria-label={"Remover custo " + x.descricao} style={iconeEstilo}>×</button></span>
+          </div>
+        ))}
+        <div className="flex gap-2 mt-2 mb-8 flex-wrap items-center">
+          <input style={{ ...entrada, flex: 2, minWidth: 160 }} value={custoDesc} onChange={(e) => setCustoDesc(e.target.value)} placeholder="Custo (ex.: camisetas, lanche, bolas)" data-custo-desc />
+          <input inputMode="decimal" style={{ ...entrada, flex: 1, minWidth: 100 }} value={custoValor} onChange={(e) => setCustoValor(e.target.value)} placeholder="Valor (R$)" data-custo-valor />
+          <Botao pequeno onClick={adicionarCusto} disabled={!custoDesc.trim() || numeroEv(custoValor) == null}>+ Adicionar custo</Botao>
         </div>
+
+        {linkInscricao && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 14 }}>Link de inscrição para mandar por mensagem: {linkInscricao}{aberto.site ? " · no site: teamyoda.com.br, seção Eventos" : ""}</p>}
+        <button onClick={() => removerEvento(aberto.id)} style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>Excluir evento</button>
       </div>
     );
   }
@@ -17404,70 +17619,44 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Eventos</h1>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Clínicas, noites sociais e exibições — com lista de presença e vagas controladas.
+        Clínicas, noites sociais, exibições e eventos para crianças: inscrições pelo site, vagas e lista de espera, pagamentos marcados à mão, custos e resultado.
       </p>
-
       {linkInscricao && (
         <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>
-            Link público de inscrição — o mesmo serve pros torneios. Envie pro cliente.
-          </p>
-          <div className="flex gap-2 items-center flex-wrap">
-            <input readOnly value={linkInscricao} style={{ ...entrada, fontSize: 12, flex: 1 }} onFocus={(e) => e.target.select()} />
-          </div>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>Link público de inscrição (o mesmo serve para os torneios). O evento marcado "Mostrar no site" também aparece em teamyoda.com.br.</p>
+          <input readOnly value={linkInscricao} style={{ ...entrada, fontSize: 12 }} onFocus={(e) => e.target.select()} />
         </div>
       )}
-
       <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
-        <button onClick={() => setCriando(!criando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+        <button onClick={() => setCriando(!criando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }} data-novo-evento>
           <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Novo evento</span>
           <Etiqueta>{criando ? "fechar" : "abrir"}</Etiqueta>
         </button>
-        {criando && (
-          <div className="mt-3">
-            <Campo rotulo="Nome"><input style={entrada} value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} /></Campo>
-            <div className="flex gap-2 flex-wrap">
-              <Campo rotulo="Data"><input type="date" style={entrada} value={dataNovo} onChange={(e) => setDataNovo(e.target.value)} /></Campo>
-              <Campo rotulo="Início"><input type="time" style={entrada} value={horaInicioNovo} onChange={(e) => setHoraInicioNovo(e.target.value)} /></Campo>
-              <Campo rotulo="Fim"><input type="time" style={entrada} value={horaFimNovo} onChange={(e) => setHoraFimNovo(e.target.value)} /></Campo>
-            </div>
-            <Campo rotulo="Local" nota="Opcional"><input style={entrada} value={localNovo} onChange={(e) => setLocalNovo(e.target.value)} /></Campo>
-            <Campo rotulo="Tipo">
-              <select style={entrada} value={tipoNovo} onChange={(e) => setTipoNovo(e.target.value)}>
-                {Object.keys(TIPOS_EVENTO).map((t) => <option key={t} value={t}>{TIPOS_EVENTO[t]}</option>)}
-              </select>
-            </Campo>
-            <Campo rotulo="Descrição" nota="Opcional"><input style={entrada} value={descricaoNovo} onChange={(e) => setDescricaoNovo(e.target.value)} /></Campo>
-            <Campo rotulo="Vagas" nota="Em branco = sem limite">
-              <input type="number" min="1" style={{ ...entrada, maxWidth: 120 }} value={vagasNovo} onChange={(e) => setVagasNovo(e.target.value)} />
-            </Campo>
-            <Botao pequeno onClick={criarEvento} disabled={!nomeNovo.trim()}>Criar evento</Botao>
-          </div>
-        )}
+        {criando && <FormEvento aoSalvar={(ev) => { setEventos([...eventos, ev]); setCriando(false); setAbertoId(ev.id); }} aoCancelar={() => setCriando(false)} />}
       </div>
-
       {eventos.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>Nenhum evento cadastrado ainda.</p>
       ) : (
         eventos.map((ev) => {
-          const confirmadosEv = ev.convidados.filter((c) => c.status === "confirmado").length;
+          const r = resumoEvento(ev), novas = (ev.convidados || []).filter((c) => c.vistoPeloStaff === false).length;
           return (
-            <button key={ev.id} onClick={() => setAbertoId(ev.id)} className="w-full text-left"
+            <button key={ev.id} onClick={() => setAbertoId(ev.id)} className="w-full text-left" data-evento-lista={ev.id}
               style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{ev.nome}</span>
                     <Etiqueta>{TIPOS_EVENTO[ev.tipo] || ev.tipo}</Etiqueta>
+                    {ev.site && <Etiqueta cor={C.quadra}>no site</Etiqueta>}
+                    {novas > 0 && <Etiqueta cor={C.saibro}>{novas} nova{novas > 1 ? "s" : ""}</Etiqueta>}
                   </div>
                   <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
                     {ev.data ? formatarDataLonga(ev.data) : "Sem data"}{ev.horaInicio ? " · " + ev.horaInicio : ""}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ ...prosa, fontSize: 12.5, fontWeight: 700 }}>
-                    {ev.vagas != null ? confirmadosEv + "/" + ev.vagas + " vagas" : "Vagas ilimitadas"}
-                  </div>
+                  <div style={{ ...prosa, fontSize: 12.5, fontWeight: 700 }}>{ev.vagas != null ? r.confirmados + "/" + ev.vagas + " vagas" : r.inscritos + " inscrições"}</div>
+                  <div style={{ ...prosa, fontSize: 12, color: C.grafite }}>{r.pagos} pagas · {r.emAberto} em aberto · {reaisEv(r.recebido)}</div>
                   {!ev.ativo && <Etiqueta cor={C.grafite}>inscrições encerradas</Etiqueta>}
                 </div>
               </div>
@@ -24938,7 +25127,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-painel-gestao";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-eventos-site";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24947,7 +25136,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Gestão da academia em painel próprio", d: "As telas de gestão saíram do app dos professores e foram para o painel teamyoda.com.br/gestao: quadras, horários recorrentes, clientes, torneios, eventos, aulas da equipe, relatório de aulas de toda a equipe, padrão de atendimento, financeiro e cobrança e a equipe da organização (contas e pedidos de cadastro). Quem usa é a coordenação e o administrativo, com a mesma conta e os mesmos dados; o Richard e o administrativo também abrem pela Central. No app continuam Hoje, Jogadores, Agenda (com as reposições e o relatório de aulas de cada professor), Pendências, turmas, alto rendimento, planejamentos e o método.", onde: "teamyoda.com.br/gestao", aba: "gestao-inicio" },
+  { novo: true, t: "Eventos no site, com inscrição e controle de pagamentos", d: "Em Gestão › Eventos, o evento ganhou cartaz, para quem é (com a faixa de idade), inscrições até, valor da inscrição e a opção Mostrar no site. Marcado, ele aparece na página principal do teamyoda.com.br com o formulário: responsável, WhatsApp, e-mail e, em evento de criança, nome e nascimento da criança (a idade é conferida), se já é aluno, observações e a autorização do responsável. Cada inscrição chega no evento e no celular da coordenação. No evento: WhatsApp com a mensagem pronta, pagamento de cada inscrição (em aberto, pago ou isento, com valor, data e forma), custos, resumo (recebido, em aberto, custos e resultado) e a planilha em Excel. O app não cobra: o pagamento é combinado por fora.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
+  { t: "Gestão da academia em painel próprio", d: "As telas de gestão saíram do app dos professores e foram para o painel teamyoda.com.br/gestao: quadras, horários recorrentes, clientes, torneios, eventos, aulas da equipe, relatório de aulas de toda a equipe, padrão de atendimento, financeiro e cobrança e a equipe da organização (contas e pedidos de cadastro). Quem usa é a coordenação e o administrativo, com a mesma conta e os mesmos dados; o Richard e o administrativo também abrem pela Central. No app continuam Hoje, Jogadores, Agenda (com as reposições e o relatório de aulas de cada professor), Pendências, turmas, alto rendimento, planejamentos e o método.", onde: "teamyoda.com.br/gestao", aba: "gestao-inicio" },
   { t: "Sessão do dia igual para todos os treinadores", d: "Quando um treinador gera ou muda a sessão do dia (individual, de turma ou do alto rendimento), quem está com a mesma sessão aberta passa a ver a mudança na hora, com o aviso de quem mudou, e a edição de um não apaga mais a do outro. No alto rendimento, quem abre a sessão da turma depois entra na sessão que já foi montada, em vez de montar outra. E o atleta com o plano gerado e ainda sem aprovar aparece como Plano montado, falta aprovar, com o botão Usar o plano ali mesmo (antes a sessão não montava e não dizia por quê).", onde: "Jogadores › Sessão de hoje · Turmas › Sessão · Grupos › Alto rendimento › Sessão da turma", aba: "equipes" },
   { t: "Cadastro rápido e Área do aluno com e-mail, sem link", d: "Em Jogadores, o Cadastro rápido cadastra o aluno só com o nome, sem aula nem planejamento (nascimento, e-mail e professor são opcionais); ele fica no grupo Só cadastro e, quando começar a treinar, é só tocar em Completar cadastro. Na ficha de cada aluno, o cartão Área do aluno guarda até 2 e-mails (aluno e responsável): toque em Enviar convite e a pessoa recebe um e-mail para criar a senha. Depois ela entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios sem precisar de link. Para tirar o acesso, apague o e-mail. O link do aluno continua funcionando como antes.", onde: "Jogadores › Cadastro rápido · Jogadores › abra o jogador › Perfil", aba: "alunos" },
   { t: "Análise de movimento: fotos das fases certas no iPhone", d: "No iPhone, as imagens das fases nos relatórios da análise de movimento saíam cortadas ou esticadas. Agora cada fase sai como uma imagem só, com a foto do vídeo e o boneco lado a lado, sempre na proporção do vídeo: no relatório completo (PDF), nas fotos do caderno, no relatório do aluno e no relatório que a família abre. Vale também para as análises já salvas.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
@@ -28074,7 +28264,10 @@ function App() {
     SINC.local["mty:turmas:v1"] = () => turmasRef.current;
     SINC.pronto["mty:turmas:v1"] = () => !!prontoRef.current.turmas;
     let encerrado = false; const desfazer = [];
-    ["mty:alunos:v2", "mty:turmas:v1"].forEach((k) => window.storage.observar(k).then((f) => { if (encerrado) f(); else desfazer.push(f); }));
+    /* eventos (19/11/2026): as inscrições do site chegam com a tela aberta, e salvar o evento não apaga as que chegaram */
+    SINC.aoMudar["mty:eventos:v1"] = (fn) => setEventos((prev) => { const novo = fn(prev); return JSON.stringify(novo) === JSON.stringify(prev) ? prev : novo; });
+    SINC.pronto["mty:eventos:v1"] = () => !!prontoRef.current.eventos;
+    ["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1"].forEach((k) => window.storage.observar(k).then((f) => { if (encerrado) f(); else desfazer.push(f); }));
     return () => { encerrado = true; desfazer.forEach((f) => f()); };
   }, [autenticado, orgAtual]);
   useEffect(() => {

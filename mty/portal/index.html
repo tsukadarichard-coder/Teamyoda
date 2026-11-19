@@ -184,6 +184,28 @@
   .preco-ass { font: 800 28px/1.1 var(--titulo); margin: 10px 0 4px; }
   @media (min-width: 900px) { .acesso { grid-template-columns: 1fr 1fr; gap: 64px; } .publico { padding: 0; border: 0; } .publico + .publico { border-left: 1px solid var(--linha); padding-left: 64px; } }
 
+  /* eventos (19/11/2026): só aparece quando há evento marcado "Mostrar no site" no painel de gestão */
+  #eventos[hidden], [data-link-eventos][hidden] { display: none !important; }
+  .eventos { display: grid; gap: 28px; margin-top: 36px; }
+  .evento { display: grid; gap: 20px; background: var(--fundo); border: 1px solid var(--linha); padding: 18px; }
+  .evento .cartaz { width: 100%; height: auto; max-height: 560px; object-fit: contain; background: #fff; border: 1px solid var(--linha); }
+  .evento h3 { font-size: 24px; }
+  .evento .quando { font-weight: 600; margin-top: 6px; }
+  .evento .para { display: inline-block; margin-top: 10px; font-size: 13.5px; font-weight: 700; color: var(--verm); letter-spacing: .02em; }
+  .evento .desc { color: var(--grafite); margin-top: 12px; white-space: pre-line; max-width: 60ch; }
+  .evento .vagas { font-size: 14.5px; color: var(--grafite); margin-top: 12px; }
+  .evento form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--linha); }
+  .evento form[hidden] { display: none; }
+  .evento fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+  .evento legend { font-weight: 700; font-size: 15px; margin-bottom: 10px; padding: 0; }
+  .campo textarea, .campo select { display: block; width: 100%; margin-top: 6px; min-height: 48px; padding: 10px 14px; font: 16px var(--texto); border: 1.5px solid #BDBAB4; border-radius: 4px; background: #fff; color: var(--tinta); }
+  .campo textarea { min-height: 90px; resize: vertical; }
+  .opcoes-sn { display: flex; gap: 18px; margin-top: 8px; font-weight: 500; }
+  .opcoes-sn label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .autoriza { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; color: var(--grafite); margin: 6px 0 14px; cursor: pointer; }
+  .autoriza input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+  @media (min-width: 900px) { .evento.com-cartaz { grid-template-columns: 380px 1fr; gap: 36px; padding: 28px; align-items: start; } .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; } }
+
   /* perguntas */
   .faq { max-width: 780px; margin-top: 36px; border-top: 1px solid var(--linha); }
   .faq details { border-bottom: 1px solid var(--linha); }
@@ -218,6 +240,7 @@
   <div class="cont">
     <a class="logo" href="#inicio" aria-label="Team Yoda — início"><img src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="76" height="30"></a>
     <nav class="desk" aria-label="Principal">
+      <a href="#eventos" data-link-eventos hidden>Eventos</a>
       <a href="#metodologia">Metodologia</a>
       <a href="#unidades">Unidades</a>
       <a href="#academia-digital" data-academia hidden>Academia Digital</a>
@@ -228,6 +251,7 @@
     <button class="menu-bt" type="button" aria-expanded="false" aria-controls="menuCel" id="menuBt"><span></span><b class="sr">Menu</b></button>
   </div>
   <nav class="menu" id="menuCel" aria-label="Menu" hidden>
+    <a href="#eventos" data-link-eventos hidden>Eventos</a>
     <a href="#metodologia">Metodologia</a>
     <a href="#unidades">Unidades</a>
     <a href="#academia-digital" data-academia hidden>Academia Digital</a>
@@ -250,6 +274,15 @@
           <a class="btn btn-claro" href="#acesso">Sou aluno</a>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="sec branca" id="eventos" aria-labelledby="tEventos" hidden>
+    <div class="cont">
+      <span class="olho">Eventos</span>
+      <h2 id="tEventos">Próximos eventos</h2>
+      <p class="lead">Inscreva-se por aqui. Depois falamos com você pelo WhatsApp para confirmar a vaga.</p>
+      <div class="eventos" id="listaEventos"></div>
     </div>
   </section>
 
@@ -489,6 +522,93 @@
       var f2 = document.querySelector("[data-faq-fora]"); if (f2) f2.textContent = "Sim. Quem treina fora das nossas unidades pode assinar a Academia Digital, e as consultorias com Richard Tsukada são para jogadores de qualquer lugar.";
     }
   }).catch(function () { /* sem servidor: a página segue com os textos fixos */ });
+
+  /* ── eventos marcados "Mostrar no site" no painel de gestão (19/11/2026) ──
+     Lista pública de netlify/functions/inscricao-torneio-evento.js (sem nomes, telefones nem valores) e o formulário de inscrição;
+     a inscrição vai para a gestão do Team Yoda (Gestão › Eventos), que avisa a coordenação no celular. O pagamento é combinado
+     depois, pelo WhatsApp: a página não cobra nem mostra preço. */
+  var API_EV = "/.netlify/functions/inscricao-torneio-evento", ORG_EV = "team-yoda";
+  function dataBR(d) { return d ? d.split("-").reverse().join("/") : ""; }
+  function dataLonga(d) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d || "")) return "";
+    try { return new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); } catch (e) { return dataBR(d); }
+  }
+  function idadeEm(nasc, ref) {
+    var a = nasc.split("-").map(Number), b = (ref || new Date().toISOString().slice(0, 10)).split("-").map(Number);
+    return b[0] - a[0] - (b[1] < a[1] || (b[1] === a[1] && b[2] < a[2]) ? 1 : 0);
+  }
+  function cartaoEvento(e) {
+    var crianca = e.idadeMin != null || e.idadeMax != null, cheio = e.vagas != null && e.confirmados >= e.vagas, restam = e.vagas != null ? e.vagas - e.confirmados : null;
+    var quando = [dataLonga(e.data), e.horaInicio ? e.horaInicio + (e.horaFim ? " às " + e.horaFim : "") : "", e.local].filter(Boolean).join(" · ");
+    var faixa = e.publico || (crianca ? "Crianças de " + (e.idadeMin != null ? e.idadeMin : "") + " a " + (e.idadeMax != null ? e.idadeMax : "") + " anos" : "");
+    var vagas = cheio ? "As vagas estão preenchidas. Inscreva-se na lista de espera: avisamos se abrir uma vaga." : restam != null && restam <= 5 ? "Últimas " + restam + (restam === 1 ? " vaga." : " vagas.") : "";
+    var id = escH(e.id);
+    return '<article class="evento' + (e.cartaz ? " com-cartaz" : "") + '" data-evento="' + id + '">' +
+      (e.cartaz ? '<img class="cartaz" src="' + escH(e.cartaz) + '" alt="Cartaz: ' + escH(e.nome) + '" loading="lazy">' : "") +
+      '<div><h3>' + escH(e.nome) + "</h3>" + (quando ? '<p class="quando">' + escH(quando) + "</p>" : "") + (faixa ? '<span class="para">' + escH(faixa) + "</span>" : "") +
+      (e.descricao ? '<p class="desc">' + escH(e.descricao) + "</p>" : "") + (vagas ? '<p class="vagas">' + escH(vagas) + "</p>" : "") +
+      (e.inscricoesAte ? '<p class="vagas">Inscrições até ' + escH(dataBR(e.inscricoesAte)) + ".</p>" : "") +
+      '<div class="acoes" style="margin-top:18px"><button class="btn btn-verm" type="button" data-inscrever="' + id + '" aria-expanded="false" aria-controls="f-' + id + '">' + (cheio ? "Entrar na lista de espera" : "Inscrever") + "</button></div>" +
+      '<form id="f-' + id + '" data-form-evento="' + id + '" novalidate hidden>' +
+      '<fieldset><legend>Responsável</legend>' +
+      '<label class="campo">Nome do responsável<input name="nomeContato" autocomplete="name" maxlength="80" required></label>' +
+      '<div class="duas"><label class="campo">WhatsApp<input name="telefoneContato" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="(11) 99999-9999" required></label>' +
+      '<label class="campo">E-mail<input name="email" type="email" inputmode="email" autocomplete="email" maxlength="120"></label></div></fieldset>' +
+      (crianca ? '<fieldset><legend>Criança</legend>' +
+        '<div class="duas"><label class="campo">Nome da criança<input name="criancaNome" maxlength="80" required></label>' +
+        '<label class="campo">Data de nascimento<input name="criancaNascimento" type="date" required></label></div>' +
+        '<div class="campo">Já é aluno do Team Yoda?<div class="opcoes-sn"><label><input type="radio" name="jaAluno" value="sim"> Sim</label><label><input type="radio" name="jaAluno" value="nao"> Não</label></div></div>' +
+        "</fieldset>" : "") +
+      '<label class="campo">Observações<textarea name="observacoes" maxlength="600" placeholder="' + (crianca ? "Alergias, cuidados de saúde ou algo que precisamos saber" : "Algo que precisamos saber") + '"></textarea></label>' +
+      (crianca ? '<label class="autoriza"><input type="checkbox" name="autorizacao"> <span>Sou o responsável pela criança e autorizo o Team Yoda a guardar estes dados para organizar o evento e falar comigo.</span></label>' : "") +
+      '<p class="msg" role="status" hidden></p>' +
+      '<div class="acoes"><button class="btn btn-verm" type="submit">Enviar inscrição</button></div></form></div></article>';
+  }
+  function ligarEvento(e) {
+    var art = document.querySelector('[data-evento="' + e.id + '"]'); if (!art) return;
+    var bt = art.querySelector("[data-inscrever]"), f = art.querySelector("form"), m = f.querySelector(".msg");
+    var crianca = e.idadeMin != null || e.idadeMax != null;
+    function msg(tipo, t) { m.className = "msg msg-" + tipo; m.textContent = t; m.hidden = !t; }
+    function marca(campo, erro) { if (erro) { campo.setAttribute("aria-invalid", "true"); campo.focus(); } else campo.removeAttribute("aria-invalid"); }
+    bt.addEventListener("click", function () { var abrir = f.hidden; f.hidden = !abrir; bt.setAttribute("aria-expanded", String(abrir)); if (abrir) f.nomeContato.focus(); });
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var d = { org: ORG_EV, tipo: "evento", eventoId: e.id, nomeContato: f.nomeContato.value.trim(), telefoneContato: f.telefoneContato.value.trim(), email: f.email.value.trim(), observacoes: f.observacoes.value.trim() };
+      [f.nomeContato, f.telefoneContato, f.email].forEach(function (c) { marca(c, false); });
+      if (d.nomeContato.length < 2) { marca(f.nomeContato, true); return msg("erro", "Escreva o nome do responsável."); }
+      if (d.telefoneContato.replace(/\D/g, "").length < 10) { marca(f.telefoneContato, true); return msg("erro", "Confira o WhatsApp, com o DDD."); }
+      if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) { marca(f.email, true); return msg("erro", "Confira o e-mail."); }
+      if (crianca) {
+        d.criancaNome = f.criancaNome.value.trim(); d.criancaNascimento = f.criancaNascimento.value;
+        var r = f.querySelector('input[name="jaAluno"]:checked'); d.jaAluno = r ? r.value : ""; d.autorizacao = f.autorizacao.checked;
+        marca(f.criancaNome, false); marca(f.criancaNascimento, false);
+        if (d.criancaNome.length < 2) { marca(f.criancaNome, true); return msg("erro", "Escreva o nome da criança."); }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d.criancaNascimento)) { marca(f.criancaNascimento, true); return msg("erro", "Informe a data de nascimento da criança."); }
+        var idade = idadeEm(d.criancaNascimento, e.data);
+        if ((e.idadeMin != null && idade < e.idadeMin) || (e.idadeMax != null && idade > e.idadeMax)) { marca(f.criancaNascimento, true); return msg("erro", "Este evento é para crianças de " + e.idadeMin + " a " + e.idadeMax + " anos. Na data do evento a criança terá " + idade + "."); }
+        if (!d.autorizacao) return msg("erro", "Marque a autorização do responsável para enviar.");
+      }
+      var b = f.querySelector('button[type="submit"]'); b.disabled = true; msg("ok", "Enviando…");
+      fetch(API_EV, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(d) })
+        .then(function (resp) { return resp.json().catch(function () { return {}; }).then(function (j) { if (!resp.ok) throw new Error(j.erro || "Não foi possível agora. Tente de novo."); return j; }); })
+        .then(function (j) {
+          f.reset(); f.hidden = true; bt.hidden = true;
+          var ok = document.createElement("p"); ok.className = "msg msg-ok"; ok.setAttribute("role", "status"); ok.setAttribute("data-inscricao-ok", "");
+          ok.textContent = j.status === "espera" ? "Inscrição recebida na lista de espera. Se abrir uma vaga, falamos com você pelo WhatsApp." : "Inscrição recebida! Vamos falar com você pelo WhatsApp para confirmar a vaga e combinar o pagamento.";
+          bt.parentNode.appendChild(ok);
+        })
+        .catch(function (x) { msg("erro", x.message); })
+        .then(function () { b.disabled = false; });
+    });
+  }
+  fetch(API_EV + "?org=" + ORG_EV).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+    var lista = ((v && v.eventos) || []).filter(function (e) { return e.site; }).sort(function (a, b) { return String(a.data || "9").localeCompare(String(b.data || "9")); });
+    if (!lista.length) return;
+    document.getElementById("listaEventos").innerHTML = lista.map(cartaoEvento).join("");
+    lista.forEach(ligarEvento);
+    document.getElementById("eventos").hidden = false;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-link-eventos]"), function (a) { a.hidden = false; });
+  }).catch(function () { /* sem servidor: a página segue sem a seção de eventos */ });
 
   /* aviso de abertura (fluxo que já existia: digital acao=interesse) */
   var f = document.getElementById("fEspera"), m = document.getElementById("mEspera");

@@ -217,7 +217,12 @@
         html += '<div class="sub">' + quando + '</div>';
         if (e.descricao) html += '<p class="sub" style="margin-top:6px">' + escapeHtml(e.descricao) + '</p>';
         html += '<div class="etiqueta" style="margin-top:8px">' + (e.vagas != null ? e.confirmados + '/' + e.vagas + ' vagas' : 'vagas ilimitadas') + '</div>';
-        if (estado.aberto === chave) {
+        /* evento de criança (19/11/2026): a inscrição pede os dados da criança e a autorização do responsável, no formulário do site */
+        if (e.idadeMin != null || e.idadeMax != null) {
+          html += org === 'team-yoda'
+            ? '<a class="bt" style="margin-top:10px;display:inline-block;text-decoration:none" href="/portal/#eventos" data-evento-crianca>Inscrever no site do Team Yoda</a>'
+            : '<p class="sub" style="margin-top:10px">A inscrição deste evento é feita direto com a academia.</p>';
+        } else if (estado.aberto === chave) {
           html += formInline(null);
         } else {
           html += '<button class="bt' + (lotado ? ' bt-vazio' : '') + '" style="margin-top:10px" data-abrir="' + chave + '">' + (lotado ? 'Entrar na lista de espera' : 'Inscrever-se') + '</button>';
