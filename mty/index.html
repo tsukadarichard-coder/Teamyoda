@@ -21662,7 +21662,7 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           {!tipo ? (
             <div className="flex flex-col gap-2">
               {[{ v: "individual", r: "Aula individual" }, { v: "turma", r: "Aula de turma" },
-                { v: "locacao", r: "Locação" }, { v: "reposicao", r: "Reposição" }, { v: "bloqueio", r: "Bloqueio" }].filter((t) => podeGestao || (t.v !== "locacao" && t.v !== "bloqueio")).map((t) => (
+                { v: "locacao", r: "Locação" }, { v: "reposicao", r: "Reposição" }, { v: "bloqueio", r: "Bloqueio" }].filter((t) => (podeGestao || (t.v !== "locacao" && t.v !== "bloqueio")) && (t.v !== "bloqueio" || PAINEL_GESTAO)).map((t) => (
                 <button key={t.v} onClick={() => escolherTipo(t.v)}
                   style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
                     border: "1px solid " + C.linha, background: "#fff", fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>
@@ -22095,7 +22095,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
             </button>
           ))}
           {/* link de reservas, página pública, quadras e horários recorrentes: gestão (o professor não vê) */}
-          {mostraQuadras && podeGestao && (
+          {mostraQuadras && podeGestao && PAINEL_GESTAO && (
             <div style={{ position: "relative" }}>
               <Botao pequeno variante="vazio" onClick={() => setMaisOpcoesAberto((v) => !v)}>Mais opções</Botao>
               {maisOpcoesAberto && (
@@ -22252,7 +22252,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                   <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.titulo}</p>
                   <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{detalheAberto.horaInicio}–{detalheAberto.horaFim} · todas as quadras</p>
                   <div className="mt-3">
-                    {podeGestao && <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba && setAba("grade-aulas"); }}>Gerenciar em Horários recorrentes</Botao>}
+                    {podeGestao && PAINEL_GESTAO && <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba && setAba("grade-aulas"); }}>Gerenciar em Horários recorrentes</Botao>}
                   </div>
                 </>
               )}
@@ -25199,7 +25199,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-meu-plano-aulas";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-app-sem-gestao";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -25208,7 +25208,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Meu plano com o professor e as próximas aulas", d: "Quando o aluno abre o Meu plano (pela Área do aluno com o e-mail ou pelo link), aparecem o professor dele (e o de cada turma) e as próximas aulas dos 14 dias seguintes: individual, turma, reposição, aula experimental e alto rendimento, com dia, horário, quadra, professor e substituto. Aula cancelada aparece riscada com o motivo. Tudo sai da Agenda e dos horários fixos, sem nada novo para preencher.", onde: "Meu plano do aluno", aba: "alunos" },
+  { novo: true, t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão.", onde: "Agenda e sino de avisos", aba: "agenda" },
+  { t: "Meu plano com o professor e as próximas aulas", d: "Quando o aluno abre o Meu plano (pela Área do aluno com o e-mail ou pelo link), aparecem o professor dele (e o de cada turma) e as próximas aulas dos 14 dias seguintes: individual, turma, reposição, aula experimental e alto rendimento, com dia, horário, quadra, professor e substituto. Aula cancelada aparece riscada com o motivo. Tudo sai da Agenda e dos horários fixos, sem nada novo para preencher.", onde: "Meu plano do aluno", aba: "alunos" },
   { t: "Agenda do professor sem dados da gestão", d: "Na Agenda do app dos professores, a locação de quadra aparece só como Quadra reservada, sem o nome e o telefone de quem alugou e sem cancelar a reserva; o + Agendar oferece aula individual, aula de turma e reposição (locação e bloqueio de quadra ficam com a gestão), e o menu com o link de reservas, a página pública, as quadras e os horários recorrentes saiu. A coordenação e a gestão continuam vendo tudo no painel teamyoda.com.br/gestao.", onde: "Agenda", aba: "agenda" },
   { t: "Eventos: opções de inscrição com valor, período de vários dias e destaque no topo do site", d: "Na criação do evento, em Opções de inscrição, cadastre por exemplo 1 semana, 2 semanas e Diária avulsa, cada uma com o seu valor: quem se inscreve no site escolhe uma e vê o valor ali mesmo (sem opções, aparece o valor único da inscrição). Na diária (marque valor por dia), a pessoa escolhe os dias úteis do período e vê o total; no painel aparecem os dias de cada inscrição e quantas crianças vêm em cada dia. Cada opção tem a caixa aparece no site: desmarcada, o cliente não vê a opção, que continua valendo para inscrição lançada no painel. O evento também tem o Último dia, para os que duram vários dias (o site mostra o período, como 9 a 18 de dezembro), e aparece logo no topo da página de entrada. No painel, cada inscrição mostra a opção escolhida, e o resumo, o em aberto, a mensagem do WhatsApp e a planilha usam o valor de cada opção.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
   { t: "Eventos no site, com inscrição e controle de pagamentos", d: "Em Gestão › Eventos, o evento ganhou cartaz, para quem é (com a faixa de idade), inscrições até, valor da inscrição e a opção Mostrar no site. Marcado, ele aparece na página principal do teamyoda.com.br com o formulário: responsável, WhatsApp, e-mail e, em evento de criança, nome e nascimento da criança (a idade é conferida), se já é aluno, observações e a autorização do responsável. Cada inscrição chega no evento e no celular da coordenação. No evento: WhatsApp com a mensagem pronta, pagamento de cada inscrição (em aberto, pago ou isento, com valor, data e forma), custos, resumo (recebido, em aberto, custos e resultado) e a planilha em Excel. O app não cobra: o pagamento é combinado por fora.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },
@@ -28381,7 +28382,7 @@ function App() {
      tenta buscar pros outros papéis. Sondagem simples — não precisa de
      tempo real pra um número que só o sininho mostra. */
   useEffect(() => {
-    if (papelAtual !== "coordenador") { setPedidosPendentesCount(0); return; }
+    if (papelAtual !== "coordenador" || !PAINEL_GESTAO) { setPedidosPendentesCount(0); return; }
     let ativo = true;
     function checar() { contarPedidosPendentes().then((n) => { if (ativo) setPedidosPendentesCount(n); }); }
     checar();
@@ -28397,8 +28398,9 @@ function App() {
   const pendenciasVisiveis = avisos.pendencias.filter((p) => !avisosVistos.has(idPendencia(p)));
   const pedidosAlunosVisiveis = avisos.pedidosAlunos.filter((p) => !avisosVistos.has(idPedidoAluno(p)));
   const reservasNovasVisiveis = papelAtual === "coordenador" ? avisos.reservasNovas : [];
-  const inscricoesTorneioNovasVisiveis = papelAtual === "coordenador" ? avisos.inscricoesTorneioNovas : [];
-  const inscricoesEventoNovasVisiveis = papelAtual === "coordenador" ? avisos.inscricoesEventoNovas : [];
+  /* inscrições de torneio e de evento e pedidos de cadastro levam a telas do painel: aparecem só no sino do painel */
+  const inscricoesTorneioNovasVisiveis = papelAtual === "coordenador" && PAINEL_GESTAO ? avisos.inscricoesTorneioNovas : [];
+  const inscricoesEventoNovasVisiveis = papelAtual === "coordenador" && PAINEL_GESTAO ? avisos.inscricoesEventoNovas : [];
   function verReserva(r) {
     setReservas(reservas.map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x)));
     setAgendaDataAlvo(r.data);
@@ -28502,12 +28504,12 @@ function App() {
     ...(ehCoordenador ? [{ v: "equipe", r: "Equipe da organização" }] : []),
   ];
   /* no app, uma tela que agora mora no painel (atalho da Agenda, aviso de inscrição ou de cadastro) abre o painel nela */
+  /* 25/11/2026 (pedido do Richard: "não quero que pelo aplicativo do Team Yoda tenha acesso à central de gestão"): o app não abre
+     o painel de gestão por nenhum caminho; o painel abre só pela Central (chip "Gestão do Team Yoda"). No painel, troca de tela. */
   function irGestao(v) {
-    if (PAINEL_GESTAO) { setAba(v); return; }
-    if (!podeGestao) { alert("Esta tela fica no painel de gestão, da coordenação e do administrativo."); return; }
-    window.location.href = "/gestao?aba=" + encodeURIComponent(v);
+    if (PAINEL_GESTAO) setAba(v);
   }
-  useEffect(() => { if (!PAINEL_GESTAO && (ABAS_SO_PAINEL.has(aba) || aba === "gestao-inicio")) { const v = aba; setAba("dashboard"); irGestao(v); } }, [aba]);
+  useEffect(() => { if (!PAINEL_GESTAO && (ABAS_SO_PAINEL.has(aba) || aba === "gestao-inicio")) setAba("dashboard"); }, [aba]);
   /* no painel só abrem as telas de gestão desta conta (e a ficha de um jogador aberta a partir delas) */
   useEffect(() => {
     if (!PAINEL_GESTAO || !podeGestao) return;

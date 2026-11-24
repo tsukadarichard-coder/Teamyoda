@@ -66,7 +66,7 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
   assert(c.autorizacaoEm && c.criancaIdade >= 9 && c.criancaIdade <= 10, "autorização com data e idade no evento");
   assert.deepStrictEqual([c.opcaoId, c.opcaoNome, c.valor], ["s2", "2 semanas", 800], "opção e valor guardados");
   assert.strictEqual(avisos.length, 1); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
-  assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/gestao?aba=eventos");
+  assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/" && /pela Central/.test(avisos[0].aviso.corpo), "o aviso não abre a gestão pelo app");
   /* lotou: a próxima vai para a lista de espera */
   assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s4", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "opção fora do site não vale no site");
   /* diária avulsa: dias do evento, valor × dias (ocupa a última vaga) */

@@ -183,8 +183,9 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
   /* aviso no celular da coordenação (o aviso é extra: se falhar, a inscrição continua valendo) */
   await P.avisar(admin, { app: "treinador", orgId: org, papel: "coordenador" }, {
     titulo: "Inscrição nova · " + resultado.eventoNome,
-    corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : ""),
-    url: "/gestao?aba=eventos", tag: "evento-" + eventoId,
+    corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : "") + ". Veja em Gestão › Eventos, pela Central.",
+    /* 25/11/2026: o app não abre a gestão; o toque abre o app e a inscrição se vê no painel, pela Central */
+    url: "/", tag: "evento-" + eventoId,
   });
   return resposta(200, { ok: true, eventoNome: resultado.eventoNome, status: resultado.status });
 }
