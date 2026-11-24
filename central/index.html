@@ -340,8 +340,120 @@ function PainelAvisos({ papel, avisosIni, tipos, chavePush }) {
 }
 /* painel de gestão do Team Yoda: quadras, horários, clientes, torneios, eventos, relatório de aulas, financeiro/cobrança e equipe */
 const GESTAO_TY = "https://teamyoda.com.br/gestao";
+/* ── Gravações (24/11/2026): roteiro de gravação dos cursos da Academia Digital, lido do app pela function (só leitura).
+   "No app" vem sozinho quando a aula tem link do YouTube; "Gravada" e "No YouTube" são marcados aqui (central/gravacoes). ── */
+const STATUS_GRAV = { agravar: ["A gravar", "#EEF1EF", "#5B6B63"], gravada: ["Gravada", "#FBF1D9", "#8A5A00"], youtube: ["No YouTube", "#E7F1FB", "#1F5C99"], app: ["No app", "#E5F4E4", "#2E6B2B"] };
+function AbaGravacoes() {
+  const [v, setV] = useState(null), [erro, setErro] = useState(""), [ocupado, setOcupado] = useState(""), [modo, setModo] = useState("curso"), [aberta, setAberta] = useState("");
+  async function chamar(corpo) {
+    setErro("");
+    try { setV(await chamarCentral("POST", corpo)); } catch (e) { setErro(String(e.message || e)); }
+  }
+  useEffect(() => { chamar({ acao: "gravacoesVer" }); }, []);
+  async function marcar(aulaId, status) { setOcupado(aulaId); await chamar({ acao: "gravacoesMarcar", aulaId, status }); setOcupado(""); }
+  const cartaoG = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const chipM = (on) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#FFFFFF" : C.tinta });
+  const selo = (st) => { const [r, bg, cor] = STATUS_GRAV[st] || STATUS_GRAV.agravar; return <span data-status-grav={st} style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: bg, color: cor, whiteSpace: "nowrap" }}>{r}</span>; };
+  if (erro && !v) return <p style={{ ...prosa, color: "#B23A2E" }}>{erro}</p>;
+  if (!v) return <p style={sub}>Carregando as aulas da Academia Digital…</p>;
+  const r = v.resumo, pct = r.aulas ? Math.round((r.app / r.aulas) * 100) : 0;
+  const todas = v.cursos.flatMap((c) => c.aulas.map((a) => ({ ...a, curso: c.titulo })));
+  function linhaAula(a) {
+    const ab = aberta === a.id;
+    return (
+      <div key={a.id} data-aula-grav={a.id} style={{ borderTop: "1px solid #EEF1EF", padding: "9px 0" }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => setAberta(ab ? "" : a.id)} aria-expanded={ab} style={{ flex: 1, minWidth: 180, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: ARCH, fontSize: 14.5, color: C.tinta }}>
+            <span style={{ fontWeight: 700 }}>{a.n} {a.titulo}</span>
+            <span style={{ color: C.grafite, fontSize: 12.5 }}>{" · " + (a.duracao || "—") + (a.sessao ? " · sessão " + a.sessao : "")}</span>
+            <span style={{ color: C.grafite, fontSize: 12 }}>{ab ? "  ▴" : "  ▾"}</span>
+          </button>
+          {a.temVideo ? selo("app") : (
+            <select data-marcar-grav={a.id} value={a.status} disabled={ocupado === a.id} onChange={(e) => marcar(a.id, e.target.value)}
+              style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "4px 8px", borderRadius: 999, border: "1px solid #E0E6E3", background: (STATUS_GRAV[a.status] || STATUS_GRAV.agravar)[1], color: (STATUS_GRAV[a.status] || STATUS_GRAV.agravar)[2] }}>
+              <option value="agravar">A gravar</option><option value="gravada">Gravada</option><option value="youtube">No YouTube</option>
+            </select>
+          )}
+        </div>
+        {ab && (
+          <div data-roteiro-grav style={{ marginTop: 8, paddingLeft: 2 }}>
+            {a.etapas.length > 0 && <ol style={{ ...prosa, fontSize: 13.5, margin: "0 0 6px", paddingLeft: 20 }}>{a.etapas.map((e, i) => <li key={i} style={{ marginBottom: 3 }}><b>{e.titulo}</b>{e.pontos.length ? ": " + e.pontos.join("; ") + "." : ""}</li>)}</ol>}
+            {a.erros.map((e, i) => <p key={i} style={{ ...prosa, fontSize: 13.5, marginBottom: 3 }}><b>Erro para mostrar:</b> {e.sinal} → {e.correcao}</p>)}
+            {a.exercicios.length > 0 && <p style={{ ...prosa, fontSize: 13.5, marginBottom: 3 }}><b>Exercício:</b> {a.exercicios.map((x) => x.codigo + (x.nome ? " " + x.nome : "")).join("; ")}.</p>}
+            {a.fecho && <p style={{ ...prosa, fontSize: 13.5, marginBottom: 3 }}><b>Fecho:</b> {a.fecho}</p>}
+            {!a.temVideo && <p style={{ ...sub, marginTop: 4 }}>Quando o link do YouTube estiver na aula (app › Mais › Academia Digital), ela passa sozinha para No app.</p>}
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div data-gravacoes>
+      <div style={cartaoG}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 2px" }}>Academia Digital: gravações</p>
+        <p style={{ ...sub, marginBottom: 8 }} data-resumo-grav>{r.app} de {r.aulas} aulas com vídeo no app · {r.gravada} gravadas · {r.youtube} no YouTube · {r.agravar} a gravar · cerca de {horasTxt(r.minutos)} de vídeo</p>
+        <div style={{ height: 8, borderRadius: 99, background: "#EEF1EF", overflow: "hidden" }}><div style={{ width: pct + "%", height: "100%", background: C.saibro }} /></div>
+        {v.fonte === "base" && <p style={{ ...sub, marginTop: 8 }}>Mostrando os cursos de base: a Academia ainda não tem conteúdo salvo no app.</p>}
+        <p style={{ ...sub, marginTop: 8 }}>A Academia está pausada para os alunos: os vídeos aparecem para a equipe agora e para os alunos quando ela reabrir.</p>
+      </div>
+      {erro && <p style={{ ...prosa, fontSize: 13, color: "#B23A2E", marginBottom: 8 }}>{erro}</p>}
+      <div className="flex gap-2" style={{ marginBottom: 12 }}>
+        <button type="button" data-modo-grav="curso" style={chipM(modo === "curso")} onClick={() => setModo("curso")}>Por curso</button>
+        <button type="button" data-modo-grav="sessao" style={chipM(modo === "sessao")} onClick={() => setModo("sessao")}>Por sessão</button>
+        <button type="button" data-modo-grav="como" style={chipM(modo === "como")} onClick={() => setModo("como")}>Como gravar</button>
+      </div>
+      {modo === "curso" && v.cursos.map((c) => (
+        <div key={c.id} style={cartaoG} data-curso-grav={c.id}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 2px" }}>Curso {c.n} · {c.titulo}</p>
+          <p style={{ ...sub, marginBottom: 6 }}>{c.aulas.filter((a) => a.status === "app").length} de {c.aulas.length} no app{c.publicada ? "" : " · curso não publicado"}</p>
+          {c.aulas.map(linhaAula)}
+        </div>
+      ))}
+      {modo === "sessao" && v.sessoes.map((s) => (
+        <div key={s.n} style={cartaoG} data-sessao-grav={s.n}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 2px" }}>Sessão {s.n} · {s.onde}</p>
+          <p style={{ ...sub, marginBottom: 2 }}>{horasTxt(s.minutos)} de vídeo · {s.feitas} de {s.total} já gravadas</p>
+          <p style={{ ...sub, marginBottom: 6 }}>Levar: {s.levar}.</p>
+          {todas.filter((a) => a.sessao === s.n).map(linhaAula)}
+        </div>
+      ))}
+      {modo === "sessao" && todas.some((a) => !a.sessao) && (
+        <div style={cartaoG}><p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>Sem sessão (cursos novos da coordenação)</p>{todas.filter((a) => !a.sessao).map(linhaAula)}</div>
+      )}
+      {modo === "como" && (
+        <div style={cartaoG} data-como-grav>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>Como gravar</p>
+          <p style={{ ...prosa, fontSize: 13.5, marginBottom: 6 }}>O texto, as fotos e o quiz já estão no app; o vídeo mostra em quadra o que o texto explica. Fale com o aluno, não com o professor.</p>
+          <ul style={{ ...prosa, fontSize: 13.5, paddingLeft: 20, margin: "0 0 8px" }}>
+            <li>Celular na horizontal, 1080p, em tripé na altura do ombro.</li>
+            <li>Microfone de lapela: em quadra aberta o som do celular pega vento e bola.</li>
+            <li>Câmera lenta (120 ou 240 quadros) na preparação, no contato e na terminação.</li>
+            <li>Dois ângulos nos golpes: atrás da linha de base e de lado.</li>
+          </ul>
+          <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: "0 0 4px" }}>Estrutura de cada vídeo</p>
+          <ol style={{ ...prosa, fontSize: 13.5, paddingLeft: 20, margin: "0 0 8px" }}>
+            <li>Abertura (15 s): o que o aluno vai aprender e por que importa.</li>
+            <li>Demonstração completa em velocidade normal.</li>
+            <li>As etapas do roteiro, uma por vez, com a câmera lenta.</li>
+            <li>O erro mais comum: mostre o erro e depois a correção.</li>
+            <li>O exercício para treinar, em 20 a 30 segundos.</li>
+            <li>Fecho: a pergunta do quiz, para o aluno responder no app logo depois.</li>
+          </ol>
+          <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: "0 0 4px" }}>Depois de gravar</p>
+          <ol style={{ ...prosa, fontSize: 13.5, paddingLeft: 20, margin: 0 }}>
+            <li>Suba no YouTube como Não listado, com o número e o título da aula.</li>
+            <li>Marque aqui No YouTube.</li>
+            <li>No app do Team Yoda, Mais › Academia Digital › curso › aula: cole o link em Link do vídeo no YouTube e salve.</li>
+            <li>A aula passa sozinha para No app nesta tela.</li>
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
 function TelaAdministrativo({ resp }) {
-  const ABAS_ADM = [["rotina-adm", "Hoje"], ["viagens", "Viagens"], ["agentes", "Agentes"], ["avisos", "Avisos"]];
+  const ABAS_ADM = [["rotina-adm", "Hoje"], ["viagens", "Viagens"], ["gravacoes", "Gravações"], ["agentes", "Agentes"], ["avisos", "Avisos"]];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_ADM.some(([v]) => v === h) ? h : "rotina-adm"; });
   useEffect(() => { const f = () => { const h = String(location.hash || "").replace("#", ""); if (ABAS_ADM.some(([v]) => v === h)) setAba(h); }; window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
   const chip = (on) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#FFFFFF" : C.tinta, whiteSpace: "nowrap", flex: "none" });
@@ -357,6 +469,7 @@ function TelaAdministrativo({ resp }) {
       {aba === "rotina-adm" && resp.rotinaAdm && <AbaRotinaAdm inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens, torneios: resp.torneios }} podeEditar />}
       {aba === "viagens" && <AbaViagens inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens || [], torneios: resp.torneios || [] }} podeEditar />}
       {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={resp.agentesDef || []} papel="administrativo" />}
+      {aba === "gravacoes" && <AbaGravacoes />}
       {aba === "avisos" && <PainelAvisos papel="administrativo" avisosIni={resp.avisos} tipos={resp.tipos || []} chavePush={resp.chavePush} />}
     </div>
   );
@@ -738,7 +851,7 @@ function TelaCentral() {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [estadoSalvar, setEstadoSalvar] = useState("");
-  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "administrativo", "negocios", "revisao", "notas", "avisos"];
+  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "administrativo", "gravacoes", "negocios", "revisao", "notas", "avisos"];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_HASH.indexOf(h) >= 0 ? h : "hoje"; });
   const [impl, setImpl] = useState(null);
   const [estadoImpl, setEstadoImpl] = useState("");
@@ -924,7 +1037,7 @@ function TelaCentral() {
       </div>
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
-        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
+        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["gravacoes", "Gravações"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
         {/* painel de gestão do Team Yoda (18/11/2026): saiu do app dos professores e abre daqui, em outra aba */}
         <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chipA(false), whiteSpace: "nowrap", flex: "none", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
       </div>
@@ -1126,6 +1239,7 @@ function TelaCentral() {
         );
       })()}
 
+      {aba === "gravacoes" && <AbaGravacoes />}
       {aba === "implantacao" && impl && <AbaImplantacao lista={impl} mudar={mudarImpl} hoje={hoje} />}
       {aba === "rotina" && resp.rotina && <AbaRotina inicial={{ rotina: resp.rotina, ritmos: resp.ritmos, professores: resp.professores }} />}
       {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={(resp.agentesDef || []).filter((d) => d.para !== "administrativo")} papel="richard" />}

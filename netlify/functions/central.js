@@ -48,6 +48,7 @@ const R = require("./_central-rotina");
 const AG = require("./_central-agentes");
 const M = require("./_central-agentes-motor");
 const ADM = require("./_central-adm");
+const GR = require("./_central-gravacoes");
 
 const NEGOCIOS = ["team-yoda", "39-ranch", "quadralab", "alvor", "geral"];
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
@@ -286,8 +287,32 @@ async function acaoAgentes(b, claims, papel) {
   return { item: AG.itemPublico(id, item) };
 }
 
+/* Gravações (24/11/2026): roteiro dos cursos da Academia Digital, lido do app (só leitura) + marcas da Central.
+   POST { acao: "gravacoesVer" } | { acao: "gravacoesMarcar", aulaId, status } (Richard e administrativo) → { cursos, resumo, sessoes } */
+let nomesExercicios = null;
+async function vistaGravacoes() {
+  if (!nomesExercicios) { try { nomesExercicios = Object.fromEntries(require("./_exercicios-digital.json").map((e) => [e.c, e.n])); } catch (e) { nomesExercicios = {}; } }
+  const [conteudo, marcas] = await Promise.all([
+    db().collection("digitalConteudo").doc("academia").get().catch(() => null),
+    db().collection("central").doc("gravacoes").get().catch(() => null),
+  ]);
+  let trilhas = conteudo && conteudo.exists ? conteudo.data().trilhas : null, fonte = "app";
+  if (!Array.isArray(trilhas) || !trilhas.length) { trilhas = require("./_cursos-mty").CURSOS; fonte = "base"; }
+  return { ...GR.montar(trilhas, marcas && marcas.exists ? marcas.data().marcas : {}, nomesExercicios), fonte };
+}
+async function acaoGravacoes(b, claims) {
+  if (b.acao === "gravacoesMarcar") {
+    const ref = db().collection("central").doc("gravacoes"), d = await ref.get();
+    let marcas;
+    try { marcas = GR.limparMarca(d.exists ? d.data().marcas : {}, b.aulaId, String(b.status || "")); } catch (e) { throw new FIN._ErroPublico(400, e.message); }
+    await ref.set({ marcas, atualizado: Date.now(), por: claims.email || claims.uid || "" });
+  }
+  return vistaGravacoes();
+}
+
 async function acao(b, claims, papel) {
   const uid = String(claims.uid || "");
+  if (b.acao === "gravacoesVer" || b.acao === "gravacoesMarcar") return acaoGravacoes(b, claims);
   if (/^adm/.test(b.acao)) return acaoAdm(b, papel);
   if (b.acao === "agenteGerar" || b.acao === "agenteItem" || b.acao === "agentesListar") return acaoAgentes(b, claims, papel);
   if (/^(rotina|agente|caixaEntrada)/.test(b.acao)) {
