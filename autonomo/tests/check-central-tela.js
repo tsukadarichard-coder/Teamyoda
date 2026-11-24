@@ -108,7 +108,14 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       await p.click('button:text-is("Salvar viagem")'); await p.waitForSelector("[data-viagem]");
       await p.click('[data-viagem] [data-check="inscricao"]'); await p.waitForFunction(() => document.querySelector('[data-viagem] [data-check="inscricao"]').checked, null, { timeout: 10000 });
       assert(gravados["central/rotinaAdm"].viagens[0].inscricao === true, "viagem com inscrição marcada");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-adm-viagens.png"), fullPage: true });
+      /* Gravações (24/11/2026): o administrativo também vê o roteiro e marca o status */
+      await p.click('[data-aba-adm="gravacoes"]'); await p.waitForSelector("[data-curso-grav]", { timeout: 15000 });
+      assert(/de 29 aulas com vídeo no app/.test(await p.innerText("[data-gravacoes]")), "administrativo vê as gravações");
+      await p.click('[data-aula-grav="cmty-tec-01"] button'); await p.waitForSelector("[data-roteiro-grav]");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-adm-gravacoes.png"), fullPage: false });
       await p.click('[data-aba-adm="agentes"]'); await p.waitForSelector("[data-config-agentes]");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-adm-agentes.png"), fullPage: true });
       ta = await p.innerText("[data-agentes]");
       assert(/Resumo do administrativo/.test(ta) && /Faltas e aulas sem registro/.test(ta) && /Viagens/.test(ta) && !/Caixa de entrada|Painel de segunda|Teto do mês/.test(ta), "agentes do administrativo: " + ta.slice(0, 400));
       await p.click('[data-aba-adm="avisos"]'); await p.waitForSelector("[data-estado-avisos=inativo]", { timeout: 10000 });
