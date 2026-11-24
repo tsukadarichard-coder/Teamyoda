@@ -248,8 +248,22 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       assert(/Lia Souza · Copa Sul/.test(await p.innerText("[data-viagens]")), "o Richard vê as viagens");
       if (capturas) await p.screenshot({ path: path.join(capturas, "central-ric-administrativo.png"), fullPage: true });
       console.log("  Administrativo: o Richard vê a rotina e as viagens, sem editar");
+      /* Gravações (24/11/2026): roteiro da Academia Digital (sem conteúdo salvo no app = cursos de base), marcar status */
+      await p.click('[data-aba-central="gravacoes"]'); await p.waitForSelector("[data-curso-grav]", { timeout: 15000 });
+      let tg = await p.innerText("[data-gravacoes]");
+      assert(/0 de 29 aulas com vídeo no app/.test(tg) && /cerca de 2h31 de vídeo/.test(tg) && /cursos de base/.test(tg), "resumo das gravações: " + tg.slice(0, 300));
+      await p.click('[data-aula-grav="cmty-tec-02"] button'); await p.waitForSelector("[data-roteiro-grav]");
+      const rot = await p.innerText("[data-roteiro-grav]");
+      assert(/Preparação: unit turn/.test(rot) && /Erro para mostrar/.test(rot) && /FB001 FH Cruzado Profundo/.test(rot) && /Fecho: De onde vem a potência/.test(rot), "roteiro da aula: " + rot);
+      await p.selectOption('[data-marcar-grav="cmty-tec-02"]', "gravada");
+      await p.waitForFunction(() => /1 gravadas/.test(document.querySelector("[data-resumo-grav]").innerText), null, { timeout: 10000 });
+      assert.strictEqual(gravados["central/gravacoes"].marcas["cmty-tec-02"], "gravada", "marca gravada na Central");
+      await p.click('[data-modo-grav="sessao"]'); await p.waitForSelector("[data-sessao-grav]");
+      assert(/Sessão 1 · Fundo de quadra/.test(await p.innerText("[data-gravacoes]")) && /1 de 6 já gravadas/.test(await p.innerText('[data-sessao-grav="1"]')), "sessões");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-gravacoes.png"), fullPage: true });
+      console.log("  Gravações: roteiro das aulas, status marcado e sessões");
     } else {
-      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Administrativo", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
+      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Administrativo", "Gravações", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
         await p.click('button:text-is("' + aba + '")');
         const w = await p.evaluate(() => document.documentElement.scrollWidth);
         assert(w <= 392, "celular sem rolagem lateral em " + aba + " (" + w + ")");
