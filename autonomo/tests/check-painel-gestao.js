@@ -22,6 +22,9 @@ const dono = (/const DONOS_FINANCEIRO = \["([^"]+)"/.exec(html) || [])[1];
   assert(daGestao.length && daGestao.every((r) => r.status === 200), "regras de /gestao só reescrevem (200): " + JSON.stringify(daGestao));
   assert(!regras.some((r) => /^\/gestao/.test(r.to || "")), "nenhuma regra manda para /gestao (laço)");
   assert.deepStrictEqual(daGestao.find((r) => r.from === "/gestao"), { from: "/gestao", to: "/index.html", status: 200 });
+  /* app instalado (manifest.json) só cobre /treinador: no Android, o link do painel (/gestao) abre no navegador, não dentro do app (25/11/2026) */
+  const man = JSON.parse(fs.readFileSync(path.join(__dirname, "../../mty/manifest.json"), "utf8"));
+  assert(man.scope === "/treinador" && !"/gestao".startsWith(man.scope) && ("/" + man.start_url.replace(/^\.\//, "")).startsWith(man.scope), "escopo do app: " + man.scope);
 }
 assert(dono, "lista de donos do Financeiro");
 const FAKE = `window.firebase = (function () {

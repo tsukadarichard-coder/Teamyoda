@@ -3,6 +3,7 @@
   "short_name": "Treinador",
   "description": "Ficha, periodização e sessão de treino",
   "start_url": "./treinador",
+  "scope": "/treinador",
   "display": "standalone",
   "background_color": "#F5F2F0",
   "theme_color": "#C8102E",
