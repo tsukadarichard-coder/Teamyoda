@@ -57,7 +57,7 @@ const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u =
   /* gestão */
   ({ p, ctx } = await abrir("coordenador", true));
   t = await p.evaluate(() => document.body.innerText);
-  assert(/Cliente Fulano/.test(t) && /Mais opções/.test(t), "gestão vê o cliente e o menu");
+  assert(/Cliente Fulano/.test(t) && !/Mais opções/.test(t), "coordenação vê o cliente; o menu de gestão (Mais opções) não aparece no app desde 25/11/2026");
   await ctx.close();
   assert.deepStrictEqual(erros, [], erros.join(" | "));
   console.log("check-agenda-professor: ok");
