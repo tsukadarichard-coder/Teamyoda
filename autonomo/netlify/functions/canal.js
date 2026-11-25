@@ -11,6 +11,7 @@
    para o navegador: só esta function (Admin SDK) lê e grava. Avisos no celular: mensagem nova avisa os outros participantes.
    POST { acao, canal?, ... } — acoes: "meus" (canais do aluno), "listar", "enviar", "apagar", "silenciar", "modo", "resumo".
    Este arquivo é igual em netlify/functions e autonomo/netlify/functions. */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const P = require("./_push");
 const VA = require("./ver-aluno").interno;
@@ -23,9 +24,9 @@ const LIMITE_TEXTO = 1000, LIMITE_LISTA = 200, RAJADA = { n: 20, ms: 10 * 60 * 1
 const db = () => admin.firestore();
 function lerJSON(snap) { try { return snap.exists ? JSON.parse(snap.data().value || "[]") : []; } catch (e) { return []; } }
 async function dadosDaOrg(org) {
-  const [sa, st] = await Promise.all([db().collection("orgs").doc(org).collection("dados").doc("mty:alunos:v2").get(),
+  const [alunos, st] = await Promise.all([LA.lerAlunos(db().collection("orgs").doc(org).collection("dados")).catch(() => []),
     db().collection("orgs").doc(org).collection("dados").doc("mty:turmas:v1").get()]);
-  return { alunos: lerJSON(sa), turmas: lerJSON(st) };
+  return { alunos, turmas: lerJSON(st) };
 }
 const primeiroNome = (n) => String(n || "").trim().split(/\s+/)[0] || "Aluno";
 function chaveDoc(canal) { return canal.replace(":", "_"); }
