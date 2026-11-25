@@ -4,6 +4,7 @@
    · 21h — treinador: aulas de hoje que passaram e ainda estão sem marcar (realizada, falta ou cancelada).
    Cada lembrete sai uma vez por dia (pushRodadas/{data}-{tipo}). As aulas do dia vêm de _push-aulas.js (cada site tem o seu modelo
    de agenda). Este arquivo é igual nos dois sites. */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const P = require("./_push");
 const AULAS = require("./_push-aulas");
@@ -39,8 +40,9 @@ function avisoAulaAmanha(aulas, insc) {
 async function dadosDaOrg(orgId) {
   const col = admin.firestore().collection("orgs").doc(orgId).collection("dados"), d = {};
   for (const k of AULAS.CHAVES) {
-    const s = await col.doc(k).get();
-    let v = []; try { v = s.exists ? JSON.parse(s.data().value || "[]") : []; } catch (e) { v = []; }
+    let v = [];
+    if (k === "mty:alunos:v2") { try { v = await LA.lerAlunos(col); } catch (e) { v = []; } }
+    else { const s = await col.doc(k).get(); try { v = s.exists ? JSON.parse(s.data().value || "[]") : []; } catch (e) { v = []; } }
     d[k === "mty:alunos:v2" ? "alunos" : k === "mty:turmas:v1" ? "turmas" : "ocorrencias"] = Array.isArray(v) ? v : [];
   }
   return d;

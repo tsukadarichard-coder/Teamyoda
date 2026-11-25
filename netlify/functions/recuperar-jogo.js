@@ -9,6 +9,7 @@
 
    POST { acao: "buscar", termo?, data? }  → { achados: [{ fonte, id, alunoId?, alunoNome, atleta, data, torneio, adversario, resultado, pontos, n, registro? , rascunho?, resumo? }] }
      termo: parte do nome do jogador, do torneio ou do adversário (sem acento, sem maiúscula); data: AAAA-MM-DD (opcional). */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const { limpar } = require("./_scout-publico");
 
@@ -38,9 +39,8 @@ function bate(termo, data, campos, dataJogo) {
 async function buscar(org, termo, data) {
   const fs = admin.firestore(), achados = [];
   /* 1. lista de jogadores da academia: jogos e partidas em andamento guardadas */
-  const snap = await fs.collection("orgs").doc(org).collection("dados").doc(CHAVE_ALUNOS).get();
   let alunos = [];
-  try { alunos = snap.exists ? JSON.parse(snap.data().value || "[]") : []; } catch (e) { alunos = []; }
+  try { alunos = await LA.lerAlunos(fs.collection("orgs").doc(org).collection("dados")); } catch (e) { alunos = []; }
   (Array.isArray(alunos) ? alunos : []).forEach((a) => {
     (a.registros || []).forEach((r) => {
       if (!r || r.tipo !== "jogo") return;

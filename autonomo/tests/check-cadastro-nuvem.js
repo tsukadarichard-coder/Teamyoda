@@ -33,7 +33,7 @@ const FAKE = `window.firebase = (function () {
       get: function () { return Promise.resolve(res()); },
       onSnapshot: function (cb) { var f = function () { cb(res()); }; ouv.push(f); setTimeout(f, 0); return function () { var i = ouv.indexOf(f); if (i >= 0) ouv.splice(i, 1); }; } }; }
   var db = { collection: function (n) { return colRef(n); }, settings: function () {}, enablePersistence: function () { return Promise.resolve(); },
-    runTransaction: function (fn) { return fn({ get: function (r) { return r.get(); }, set: function (r, v, o) { if (F.falhar && r.path.indexOf(F.falhar) >= 0) throw new Error("Document cannot be written because its size (1.100.000 bytes) exceeds the maximum allowed size of 1.048.576 bytes"); r.set(v, o); }, update: function (r, v) { r.update(v); } }); } };
+    runTransaction: function (fn) { return fn({ get: function (r) { return r.get(); }, set: function (r, v, o) { if (F.falhar && r.path.indexOf(F.falhar) >= 0) throw new Error("Document cannot be written because its size (1.100.000 bytes) exceeds the maximum allowed size of 1.048.576 bytes"); r.set(v, o); }, update: function (r, v) { r.update(v); }, delete: function (r) { r.delete(); } }); } };
   var user = { uid: "u-" + (F.papel || "x"), email: F.email, displayName: "Conta teste", getIdToken: function () { return Promise.resolve("tk"); },
     getIdTokenResult: function () { return Promise.resolve({ claims: { orgId: F.org || "team-yoda", role: F.papel } }); } };
   var auth = { currentUser: user, onAuthStateChanged: function (cb) { setTimeout(function () { cb(user); }, 0); return function () {}; },
@@ -103,13 +103,28 @@ const base = "http://localhost:" + srv.address().port;
   await novo(p, "Bia Barrada");
   assert(/licença desta academia venceu/.test(await p.innerText("body")), "outra academia segue com a licença");
   await p.close();
+  /* 1c. lista de jogadores acima de 1 MiB (26/11/2026, o caso do Team Yoda): o app lê a v2, grava em partes (v3) e o cadastro salva */
+  const muitos = [...Array(420).keys()].map((i) => ({ id: "g" + i, nome: "Aluno " + i, cadastroConcluido: true, registros: [...Array(10).keys()].map((k) => ({ id: "r" + k, tipo: "sessao", corrigi: "x".repeat(250) })) }));
+  p = await abrir("coordenador", "coord@teste.com", "/treinador", null, null, { store: { "orgs/team-yoda/dados/mty:alunos:v2": { value: JSON.stringify(muitos) } } });
+  await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(800); await fechaNovidades(p); await vd(p);
+  await novo(p, "Gil Grande"); await p.waitForTimeout(1500);
+  const nuvem = await p.evaluate(async () => {
+    const d = window.firebase.firestore().collection("orgs").doc("team-yoda").collection("dados");
+    const pr = (await d.doc("mty:alunos:v3").get()).data();
+    let texto = ""; for (let i = 1; i <= pr.partes; i++) { const x = (await d.doc("mty:alunos:v3~" + i).get()).data(); if (x.versao !== pr.versao) return { erro: "versão" }; texto += x.texto; }
+    const v2 = JSON.parse((await d.doc("mty:alunos:v2").get()).data().value);
+    return { partes: pr.partes, bytes: pr.bytes, n: JSON.parse(texto).length, tem: JSON.parse(texto).some((a) => a.nome === "Gil Grande"), v2: v2.length };
+  });
+  assert(nuvem.partes >= 2 && nuvem.bytes > 1048576 && nuvem.n === 421 && nuvem.tem && nuvem.v2 === 420, "lista em partes: " + JSON.stringify(nuvem));
+  assert(!(await p.$("[data-aviso-nuvem]")), "salvou sem aviso");
+  await p.close();
   /* 2. a nuvem recusa a lista de jogadores: aviso com o motivo */
-  p = await abrir("coordenador", "coord@teste.com", "/treinador", null, null, { falhar: "mty:alunos:v2" });
+  p = await abrir("coordenador", "coord@teste.com", "/treinador", null, null, { falhar: "mty:alunos:v3" });
   await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(800); await fechaNovidades(p); await vd(p);
   await novo(p, "Rui Novo");
   await p.waitForSelector("[data-aviso-nuvem]", { timeout: 20000 });
   const t = await p.innerText("[data-aviso-nuvem]");
-  assert(/não foi salva na nuvem/.test(t) && /jogadores/.test(t) && /1\.024 KB/.test(t) && /dividir a lista/.test(t), "aviso: " + t);
+  assert(/não foi salva na nuvem/.test(t) && /jogadores/.test(t) && /9\.216 KB/.test(t) && /dividir a lista/.test(t), "aviso: " + t);
   if (capturas) await p.screenshot({ path: path.join(capturas, "aviso-nuvem.png") });
   /* volta a salvar: o aviso some */
   await p.evaluate(() => { window.__FAKE.falhar = ""; });

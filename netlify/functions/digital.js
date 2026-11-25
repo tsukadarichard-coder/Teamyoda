@@ -25,6 +25,7 @@
    POST { acao: "primeiroAcesso", email } (sem login) → se o e-mail está numa ficha, garante a conta (o navegador manda em seguida
         o e-mail de criar senha do Firebase); a resposta é sempre a mesma, sem dizer se o e-mail existe.
    POST (equipe) { acao: "convidarAluno", alunoId, email } → o mesmo para o e-mail de um aluno da unidade do professor. */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const VA = require("./ver-aluno").interno;
 
@@ -162,8 +163,7 @@ async function quem(event) {
 const ehCoordenacao = (c) => !!(c && ORGS[c.orgId] && c.role === "coordenador");
 
 async function alunosDaOrg(org) {
-  const s = await db().collection("orgs").doc(org).collection("dados").doc("mty:alunos:v2").get();
-  try { return s.exists ? JSON.parse(s.data().value || "[]") : []; } catch (e) { return []; }
+  try { return await LA.lerAlunos(db().collection("orgs").doc(org).collection("dados")); } catch (e) { return []; }
 }
 /* acesso por e-mail: os e-mails que o professor cadastrou na ficha do aluno */
 const MAX_EMAILS_ACESSO = 2;
