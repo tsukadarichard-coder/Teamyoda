@@ -51,7 +51,7 @@ const FAKE = `window.firebase = (function () {
   var db = { collection: function (n) { return colRef(n); }, settings: function () {}, enablePersistence: function () { return Promise.resolve(); },
     runTransaction: function (fn) { return fn({ get: function (r) { return r.get(); }, set: function (r, v, o) { r.set(v, o); }, update: function (r, v) { r.update(v); } }); } };
   var user = { uid: "u-" + (F.papel || "x"), email: F.email, displayName: "Conta teste", getIdToken: function () { return Promise.resolve("tk"); },
-    getIdTokenResult: function () { return Promise.resolve({ claims: { orgId: "team-yoda", role: F.papel } }); } };
+    getIdTokenResult: function () { return Promise.resolve({ claims: { orgId: F.org || "team-yoda", role: F.papel } }); } };
   var auth = { currentUser: user, onAuthStateChanged: function (cb) { setTimeout(function () { cb(user); }, 0); return function () {}; },
     signInWithEmailAndPassword: function () { return Promise.resolve({ user: user }); }, signOut: function () { return Promise.resolve(); }, sendPasswordResetEmail: function () { return Promise.resolve(); } };
   var fs = function () { return db; }; fs.FieldValue = {};
@@ -76,10 +76,10 @@ const base = "http://localhost:" + srv.address().port;
 (async () => {
   const b = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [];
-  const abrir = async (papel, email, caminho, papelFin) => {
+  const abrir = async (papel, email, caminho, papelFin, org) => {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
     if (papelFin) await ctx.route(/\/\.netlify\/functions\/financeiro/, (rota) => pedidosFin.push(rota.request().url()) && rota.fulfill({ contentType: "application/json", body: JSON.stringify({ papel: papelFin }) }));
-    await ctx.addInitScript((f) => { window.__FAKE = f; try { localStorage.setItem("ql-onboarding-dispensado", "1"); } catch (e) { /* ok */ } }, { papel, email });
+    await ctx.addInitScript((f) => { window.__FAKE = f; try { localStorage.setItem("ql-onboarding-dispensado", "1"); } catch (e) { /* ok */ } }, { papel, email, org });
     await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => {
       const url = rota.request().url(), nome = url.split("?")[0].split("/").pop();
       if (/firebase-app-compat/.test(url)) return rota.fulfill({ contentType: "text/javascript", body: FAKE });
@@ -107,8 +107,18 @@ const base = "http://localhost:" + srv.address().port;
   assert(/\/treinador$/.test(p.url()) && !/Aulas da equipe/.test(await p.innerText("main")), "app volta para Hoje");
   await p.close();
 
-  /* 2. coordenação no painel */
+  /* 2. Team Yoda (26/11/2026, "Deixe na central e pode tirar o acesso do coordenador"): /gestao vai para a Central e, lá, a
+     coordenação não entra */
   p = await abrir("coordenador", "coord@teste.com", "/gestao");
+  await p.waitForURL(/central-tsukada\.netlify\.app\/ty\/gestao/, { timeout: 120000 });
+  await p.close();
+  p = await abrir("coordenador", "coord@teste.com", "/ty/gestao");
+  await p.waitForSelector("[data-gestao-sem-acesso]", { timeout: 120000 });
+  assert(/fica na Central, só para o Richard e o administrativo/.test(await p.innerText("[data-gestao-sem-acesso]")), "coordenação do Team Yoda sem a gestão");
+  await p.close();
+
+  /* 2b. coordenação de outra academia (39 Ranch) segue com o painel no próprio endereço */
+  p = await abrir("coordenador", "coord@teste.com", "/gestao", null, "39-ranch");
   await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 }); await fechaNovidades(p);
   m = await menu(p);
   assert(/Gestão da academia/i.test(m) && /Aulas da equipe/.test(m) && /Relatório de aulas/.test(m) && /Equipe da organização/.test(m), "itens da coordenação no painel:\n" + m);
@@ -125,10 +135,13 @@ const base = "http://localhost:" + srv.address().port;
   /* atalho vindo do app: /gestao?aba=… abre direto na tela */
   await p.goto(base + "/gestao?aba=relatorio"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
   assert(!(await p.$("[data-gestao-inicio]")), "abriu direto no relatório de aulas");
+  /* fora da Central, os links seguem o endereço de onde o painel abriu */
+  assert.strictEqual(await p.evaluate(() => ORIGEM_PUBLICA), base, "fora da Central, o próprio endereço");
+  assert(!(await p.$("[data-voltar-central]")), "sem Voltar para a Central fora dela");
   await p.close();
 
   /* 3. dono: financeiro e padrão de atendimento no painel, e fora do app */
-  p = await abrir("coordenador", dono, "/gestao");
+  p = await abrir("coordenador", dono, "/ty/gestao");
   await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 }); await fechaNovidades(p);
   m = await menu(p);
   assert(/Financeiro/.test(m) && /Padrão de atendimento/.test(m), "dono vê Financeiro e Padrão de atendimento:\n" + m);
@@ -142,14 +155,14 @@ const base = "http://localhost:" + srv.address().port;
   /* 3b. acesso total (25/11/2026): o Richard e o administrativo, com conta de professor, veem todas as telas do painel */
   const TODAS = ["quadras", "grade-aulas", "clientes", "torneios", "eventos", "aulas-equipe", "relatorio", "atendimento", "equipe"];
   for (const [quem, email, fin, propria] of [["dono", dono, null, "financeiro"], ["administrativo", "adm@teste.com", "admin", "cobranca"]]) {
-    p = await abrir("treinador", email, "/gestao", fin);
+    p = await abrir("treinador", email, "/ty/gestao", fin);
     await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 }); await fechaNovidades(p); await p.waitForTimeout(600);
     const at = await p.locator("[data-atalho-gestao]").evaluateAll((l) => l.map((x) => x.getAttribute("data-atalho-gestao")));
     assert(TODAS.concat([propria]).every((v) => at.includes(v)), quem + " vê todas as telas: " + at.join(","));
     assert(quem === "dono" ? !at.includes("cobranca") : !at.includes("financeiro"), quem + ": Financeiro só do Richard; Cobrança do administrativo");
-    await p.goto(base + "/gestao?aba=eventos"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
+    await p.goto(base + "/ty/gestao?aba=eventos"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
     assert(!(await p.$("[data-gestao-inicio]")) && /Eventos/.test(await p.innerText("main")), quem + " abre Eventos");
-    await p.goto(base + "/gestao?aba=equipe"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
+    await p.goto(base + "/ty/gestao?aba=equipe"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
     assert(!(await p.$("[data-gestao-inicio]")), quem + " abre Equipe da organização");
     if (capturas) await p.screenshot({ path: path.join(capturas, "painel-total-" + quem + ".png") });
     await p.close();
@@ -169,12 +182,6 @@ const base = "http://localhost:" + srv.address().port;
   assert(!(await p.$("[data-gestao-inicio]")) && /Eventos/.test(await p.innerText("main")), "aviso da Central abre Eventos");
   if (capturas) await p.screenshot({ path: path.join(capturas, "painel-na-central.png") });
   await p.close();
-  /* fora da Central, os links seguem o endereço de onde o painel abriu */
-  p = await abrir("coordenador", "coord@teste.com", "/gestao");
-  await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 });
-  assert.strictEqual(await p.evaluate(() => ORIGEM_PUBLICA), base, "fora da Central, o próprio endereço");
-  assert(!(await p.$("[data-voltar-central]")), "sem Voltar para a Central fora dela");
-  await p.close();
   const toml = fs.readFileSync(path.join(raiz, "..", "central", "netlify.toml"), "utf8");
   assert(/from = "\/ty\/gestao"\s+to = "https:\/\/app\.39tennis\.com\.br\/gestao"\s+status = 200/.test(toml) && /from = "\/ty\/\*"\s+to = "https:\/\/app\.39tennis\.com\.br\/:splat"\s+status = 200/.test(toml), "Central repassa /ty/* ao Team Yoda");
   assert(/const GESTAO_TY = "\/ty\/gestao"/.test(fs.readFileSync(path.join(raiz, "..", "central", "index.html"), "utf8")), "o atalho da Central abre a gestão dentro dela");
@@ -187,9 +194,9 @@ const base = "http://localhost:" + srv.address().port;
   await p.close();
 
   /* 4. professor no painel */
-  p = await abrir("treinador", "prof@teste.com", "/gestao");
+  p = await abrir("treinador", "prof@teste.com", "/ty/gestao");
   await p.waitForSelector("[data-gestao-sem-acesso]", { timeout: 120000 });
-  assert(/é da coordenação e do administrativo/.test(await p.innerText("[data-gestao-sem-acesso]")));
+  assert(/fica na Central/.test(await p.innerText("[data-gestao-sem-acesso]")));
   await p.close();
 
   const reais = erros.filter((e) => !/tailwind|ResizeObserver/i.test(e));
