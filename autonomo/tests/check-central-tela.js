@@ -90,8 +90,22 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       assert(!/Precisa de você|Implantação/.test(await p.evaluate(() => document.body.innerText)), "outra conta não vê nada");
       await p.click('button:text-is("Sair")'); await p.waitForSelector('input[type="password"]', { timeout: 5000 });
       /* administrativo: a rotina dele (Hoje), viagens, os agentes dele e os avisos; nada da agenda, negócios ou Implantação do Richard */
+      /* Tarefas do administrativo (25/11/2026): uma tarefa que o Richard já mandou, com prazo vencido */
+      gravados["central/tarefasAdm"] = { tarefas: [{ id: "tf1", titulo: "Ligar para a família da Ana", detalhe: "Confirmar a reposição", prazo: ontem, prioridade: "alta", status: "nova", criadaEm: new Date(Date.now() - 2 * 86400000).toISOString(), criadaPor: "Richard", atualizadaEm: "", concluidaEm: "", historico: [{ em: new Date().toISOString(), por: "Richard", acao: "criou" }] }] };
       await entrar("adm@x.com", "certa");
       await p.waitForFunction(() => /Central · Administrativo/.test(document.body.innerText) && document.querySelector("[data-rotina-adm]"), null, { timeout: 20000 });
+      assert(/Tarefas \(1\)/.test(await p.innerText('[data-aba-adm="tarefas"]')), "aba Tarefas com 1 nova");
+      await p.click('[data-aba-adm="tarefas"]'); await p.waitForSelector('[data-tarefa-adm="tf1"][data-status="nova"]', { timeout: 10000 });
+      assert(!(await p.$("[data-nova-tarefa]")), "o administrativo não cria tarefa");
+      assert(/Atrasada · era até/.test(await p.innerText('[data-tarefa-adm="tf1"]')) && /1 atrasadas/.test(await p.innerText("[data-contagem-tarefas]")), "tarefa atrasada");
+      await p.click('[data-tarefa-adm="tf1"] button:text-is("Começar")'); await p.waitForSelector('[data-grupo-tarefas="andamento"] [data-tarefa-adm="tf1"]', { timeout: 10000 });
+      await p.click('[data-tarefa-adm="tf1"] button >> nth=0'); await p.waitForSelector("[data-tarefa-detalhe]");
+      await p.fill('[data-tarefa-adm="tf1"] input[aria-label="Comentário"]', "Falei com a mãe, vem quinta");
+      await p.click('[data-tarefa-adm="tf1"] button:text-is("Concluir")'); await p.waitForSelector('[data-grupo-tarefas="concluidas"] [data-tarefa-adm="tf1"]', { timeout: 10000 });
+      const tf1 = gravados["central/tarefasAdm"].tarefas[0];
+      assert(tf1.status === "concluida" && tf1.concluidaEm && tf1.historico.map((h) => h.acao).join(",") === "criou,começou,concluiu" && tf1.historico[2].comentario === "Falei com a mãe, vem quinta" && tf1.historico[2].por === "Administrativo", JSON.stringify(tf1.historico));
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-adm-tarefas.png"), fullPage: true });
+      assert(!/\(1\)/.test(await p.innerText('[data-aba-adm="tarefas"]')), "contador some depois de começar"); await p.click('[data-aba-adm="rotina-adm"]'); await p.waitForSelector("[data-rotina-adm]");
       let ta = await p.evaluate(() => document.body.innerText);
       assert(!/Tarefas da Implantação|Precisa de você|Agenda de hoje|Rotina do Head Trainer/.test(ta), "administrativo não vê o que é do Richard: " + ta.slice(0, 300));
       assert(/Expediente: 14:00 às 18:00/.test(ta) && /Depois do expediente, até as 22h/.test(ta), "rotina do dia: " + ta.slice(0, 400));
@@ -255,6 +269,19 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       assert(/Lia Souza · Copa Sul/.test(await p.innerText("[data-viagens]")), "o Richard vê as viagens");
       if (capturas) await p.screenshot({ path: path.join(capturas, "central-ric-administrativo.png"), fullPage: true });
       console.log("  Administrativo: o Richard vê a rotina e as viagens, sem editar");
+      /* Tarefas do adm.: o Richard vê a concluída (com o comentário) e manda uma nova */
+      await p.click('[data-aba-central="tarefasAdm"]'); await p.waitForSelector('[data-grupo-tarefas="concluidas"] [data-tarefa-adm="tf1"]', { timeout: 10000 });
+      assert(/Falei com a mãe, vem quinta/.test(await p.innerText('[data-tarefa-adm="tf1"]')), "o Richard vê o comentário do administrativo");
+      await p.fill('[data-nova-tarefa] input[aria-label="Tarefa"]', "Atualizar a planilha de viagens");
+      await p.fill('[data-nova-tarefa] textarea', "Copa Sul e Copa Norte");
+      await p.click('[data-nova-tarefa] input[type="checkbox"]');
+      await p.click('button:text-is("Enviar ao administrativo")'); await p.waitForSelector('[data-grupo-tarefas="novas"] [data-tarefa-adm]', { timeout: 10000 });
+      const tNova = gravados["central/tarefasAdm"].tarefas.find((t) => t.titulo === "Atualizar a planilha de viagens");
+      assert(tNova && tNova.status === "nova" && tNova.prioridade === "alta" && tNova.criadaPor === "Richard" && tNova.detalhe === "Copa Sul e Copa Norte", "tarefa nova gravada");
+      assert.strictEqual(await p.inputValue('[data-nova-tarefa] input[aria-label="Tarefa"]'), "", "formulário limpo");
+      assert(/1 novas/.test(await p.innerText("[data-contagem-tarefas]")) && /1 concluídas/.test(await p.innerText("[data-contagem-tarefas]")), "contagem");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-ric-tarefas-adm.png"), fullPage: true });
+      console.log("  Tarefas do administrativo: ele começa e conclui com comentário; o Richard vê e manda nova");
       /* Gravações (24/11/2026): roteiro da Academia Digital (sem conteúdo salvo no app = cursos de base), marcar status */
       await p.click('[data-aba-central="gravacoes"]'); await p.waitForSelector("[data-curso-grav]", { timeout: 15000 });
       let tg = await p.innerText("[data-gravacoes]");
@@ -270,7 +297,7 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       if (capturas) await p.screenshot({ path: path.join(capturas, "central-gravacoes.png"), fullPage: true });
       console.log("  Gravações: roteiro das aulas, status marcado e sessões");
     } else {
-      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Administrativo", "Gravações", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
+      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Administrativo", "Tarefas do adm.", "Gravações", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
         await p.click('button:text-is("' + aba + '")');
         const w = await p.evaluate(() => document.documentElement.scrollWidth);
         assert(w <= 392, "celular sem rolagem lateral em " + aba + " (" + w + ")");

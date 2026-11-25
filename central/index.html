@@ -452,8 +452,94 @@ function AbaGravacoes() {
     </div>
   );
 }
+/* ── Tarefas do administrativo (25/11/2026): o Richard envia; o administrativo começa, conclui e comenta; os dois veem o que está
+   novo, em andamento e concluído. Dados pela function (central/tarefasAdm). ── */
+function AbaTarefasAdm({ papel, inicial, aoMudar }) {
+  const [v, setV] = useState(inicial || null), [erro, setErro] = useState(""), [ocupado, setOcupado] = useState("");
+  const [nova, setNova] = useState({ titulo: "", detalhe: "", prazo: "", prioridade: "normal" }), [coment, setComent] = useState({}), [aberta, setAberta] = useState("");
+  const richard = papel === "richard";
+  async function chamar(corpo, chave) {
+    setErro(""); setOcupado(chave || "x");
+    try { const r = await chamarCentral("POST", corpo); setV(r.tarefasAdm); if (aoMudar && r.tarefasAdm) aoMudar(r.tarefasAdm.contagem); return true; } catch (e) { setErro(String(e.message || e)); return false; } finally { setOcupado(""); }
+  }
+  useEffect(() => { chamar({ acao: "tarefasAdmVer" }); }, []);
+  async function criar() {
+    if (nova.titulo.trim().length < 3) { setErro("Escreva a tarefa."); return; }
+    if (await chamar({ acao: "tarefaAdmCriar", tarefa: nova }, "criar")) setNova({ titulo: "", detalhe: "", prazo: "", prioridade: "normal" });
+  }
+  const status = (t, st) => chamar({ acao: "tarefaAdmStatus", id: t.id, status: st, comentario: (coment[t.id] || "").trim() }, t.id).then((ok) => { if (ok) setComent((c) => ({ ...c, [t.id]: "" })); });
+  const comentar = (t) => chamar({ acao: "tarefaAdmStatus", id: t.id, comentario: (coment[t.id] || "").trim() }, t.id).then((ok) => { if (ok) setComent((c) => ({ ...c, [t.id]: "" })); });
+  const cartao = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const inp = { ...entrada, fontSize: 14, padding: "7px 10px" };
+  const dataBR = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
+  if (!v) return <p style={sub}>{erro || "Carregando as tarefas…"}</p>;
+  const c = v.contagem || {};
+  function linha(t) {
+    const ultimo = [...(t.historico || [])].reverse().find((h) => h.comentario);
+    const ab = aberta === t.id;
+    return (
+      <div key={t.id} data-tarefa-adm={t.id} data-status={t.status} style={{ borderTop: "1px solid #EEF1EF", padding: "10px 0" }}>
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <button type="button" onClick={() => setAberta(ab ? "" : t.id)} style={{ flex: 1, minWidth: 200, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: ARCH, color: C.tinta }}>
+            <span style={{ fontSize: 14.5, fontWeight: 700 }}>{t.titulo}</span>
+            {t.prioridade === "alta" && <span style={{ marginLeft: 6 }}><ChipP tom="vermelho">alta</ChipP></span>}
+            <span style={{ display: "block", fontSize: 12.5, color: t.atrasada ? "#B23A2E" : C.grafite, fontWeight: t.atrasada ? 700 : 400, marginTop: 2 }}>
+              {t.prazo ? (t.atrasada ? "Atrasada · era até " : "Até ") + dataBR(t.prazo) : "Sem prazo"} · enviada em {dataBR(t.criadaEm)}{t.status === "concluida" && t.concluidaEm ? " · concluída em " + dataBR(t.concluidaEm) : ""}
+            </span>
+          </button>
+          <div className="flex gap-2 flex-wrap">
+            {t.status === "nova" && <Botao pequeno variante="cheio" disabled={!!ocupado} onClick={() => status(t, "andamento")}>Começar</Botao>}
+            {t.status !== "concluida" && <Botao pequeno variante={t.status === "andamento" ? "cheio" : "vazio"} disabled={!!ocupado} onClick={() => status(t, "concluida")}>Concluir</Botao>}
+            {t.status === "concluida" && <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => status(t, "andamento")}>Reabrir</Botao>}
+          </div>
+        </div>
+        {(t.detalhe || ultimo) && !ab && <p style={{ ...sub, marginTop: 4 }}>{t.detalhe ? t.detalhe.slice(0, 160) : ""}{t.detalhe && ultimo ? " · " : ""}{ultimo ? "Último comentário (" + ultimo.por + "): " + ultimo.comentario.slice(0, 120) : ""}</p>}
+        {ab && (
+          <div style={{ marginTop: 6 }} data-tarefa-detalhe>
+            {t.detalhe && <p style={{ ...prosa, fontSize: 13.5, whiteSpace: "pre-line", marginBottom: 6 }}>{t.detalhe}</p>}
+            {(t.historico || []).map((h, i) => <p key={i} style={{ ...sub, fontSize: 12 }}>{dataBR(h.em)} · {h.por} {h.acao}{h.comentario ? ": " + h.comentario : ""}</p>)}
+            <div className="flex gap-2 items-center flex-wrap" style={{ marginTop: 6 }}>
+              <input style={{ ...inp, flex: 1, minWidth: 180 }} placeholder="Comentário (opcional)" value={coment[t.id] || ""} onChange={(e) => setComent((x) => ({ ...x, [t.id]: e.target.value }))} aria-label="Comentário" />
+              <Botao pequeno variante="vazio" disabled={!!ocupado || !(coment[t.id] || "").trim()} onClick={() => comentar(t)}>Comentar</Botao>
+              {richard && <button type="button" onClick={() => { if (confirm("Apagar a tarefa " + t.titulo + "?")) chamar({ acao: "tarefaAdmApagar", id: t.id }, t.id); }} style={{ border: "none", background: "none", color: C.grafite, textDecoration: "underline", cursor: "pointer", fontSize: 12.5 }}>Apagar</button>}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div data-tarefas-adm>
+      {erro && <p style={{ ...prosa, fontSize: 13, color: "#B23A2E", marginBottom: 8 }}>{erro}</p>}
+      {richard && (
+        <div style={cartao} data-nova-tarefa>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>Nova tarefa para o administrativo</p>
+          <input style={{ ...inp, marginBottom: 6 }} placeholder="O que precisa ser feito" value={nova.titulo} onChange={(e) => setNova({ ...nova, titulo: e.target.value })} aria-label="Tarefa" />
+          <textarea rows={2} style={{ ...inp, marginBottom: 6, resize: "vertical" }} placeholder="Detalhes (opcional)" value={nova.detalhe} onChange={(e) => setNova({ ...nova, detalhe: e.target.value })} aria-label="Detalhes" />
+          <div className="flex gap-3 items-center flex-wrap">
+            <label style={sub}>Prazo <input type="date" style={{ ...inp, width: "auto", display: "inline-block" }} value={nova.prazo} onChange={(e) => setNova({ ...nova, prazo: e.target.value })} aria-label="Prazo" /></label>
+            <label style={sub}><input type="checkbox" checked={nova.prioridade === "alta"} onChange={(e) => setNova({ ...nova, prioridade: e.target.checked ? "alta" : "normal" })} /> Prioridade alta</label>
+            <Botao pequeno variante="cheio" disabled={ocupado === "criar"} onClick={criar}>Enviar ao administrativo</Botao>
+          </div>
+          <p style={{ ...sub, marginTop: 6 }}>Ele recebe o aviso no celular (se ativou os avisos) e você recebe quando ele concluir.</p>
+        </div>
+      )}
+      <div className="flex gap-2 flex-wrap" style={{ marginBottom: 10 }} data-contagem-tarefas>
+        <ChipP tom={c.novas ? "lima" : "cinza"}>{c.novas || 0} novas</ChipP><ChipP>{c.andamento || 0} em andamento</ChipP><ChipP>{c.concluidas || 0} concluídas</ChipP>{c.atrasadas ? <ChipP tom="vermelho">{c.atrasadas} atrasadas</ChipP> : null}
+      </div>
+      {[["novas", "Novas"], ["andamento", "Em andamento"], ["concluidas", "Concluídas"]].map(([k, r]) => (
+        <div key={k} style={cartao} data-grupo-tarefas={k}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: 0 }}>{r} <span style={{ ...sub, fontWeight: 400 }}>· {(v[k] || []).length}</span></p>
+          {(v[k] || []).length === 0 ? <p style={{ ...sub, marginTop: 4 }}>{k === "novas" ? (richard ? "Nenhuma tarefa esperando o administrativo." : "Nenhuma tarefa nova do Richard.") : k === "andamento" ? "Nada em andamento." : "Nenhuma concluída ainda."}</p> : (v[k] || []).map(linha)}
+        </div>
+      ))}
+    </div>
+  );
+}
 function TelaAdministrativo({ resp }) {
-  const ABAS_ADM = [["rotina-adm", "Hoje"], ["viagens", "Viagens"], ["gravacoes", "Gravações"], ["agentes", "Agentes"], ["avisos", "Avisos"]];
+  const [novasTf, setNovasTf] = useState(resp.tarefasAdm ? resp.tarefasAdm.contagem.novas || 0 : 0);
+  const ABAS_ADM = [["rotina-adm", "Hoje"], ["tarefas", "Tarefas"], ["viagens", "Viagens"], ["gravacoes", "Gravações"], ["agentes", "Agentes"], ["avisos", "Avisos"]];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_ADM.some(([v]) => v === h) ? h : "rotina-adm"; });
   useEffect(() => { const f = () => { const h = String(location.hash || "").replace("#", ""); if (ABAS_ADM.some(([v]) => v === h)) setAba(h); }; window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
   const chip = (on) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#FFFFFF" : C.tinta, whiteSpace: "nowrap", flex: "none" });
@@ -463,13 +549,14 @@ function TelaAdministrativo({ resp }) {
       <h1 style={{ fontFamily: ARCH, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 4px" }}>Central · Administrativo</h1>
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>A sua rotina, as viagens dos atletas, os rascunhos que a Central prepara para você e os avisos no celular.</p>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
-        {ABAS_ADM.map(([v, r]) => <button key={v} data-aba-adm={v} style={chip(aba === v)} onClick={() => setAba(v)}>{r}{v === "agentes" && novos ? " (" + novos + ")" : ""}</button>)}
+        {ABAS_ADM.map(([v, r]) => <button key={v} data-aba-adm={v} style={chip(aba === v)} onClick={() => setAba(v)}>{r}{v === "agentes" && novos ? " (" + novos + ")" : ""}{v === "tarefas" && novasTf ? " (" + novasTf + ")" : ""}</button>)}
         <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chip(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
       </div>
       {aba === "rotina-adm" && resp.rotinaAdm && <AbaRotinaAdm inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens, torneios: resp.torneios }} podeEditar />}
       {aba === "viagens" && <AbaViagens inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens || [], torneios: resp.torneios || [] }} podeEditar />}
       {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={resp.agentesDef || []} papel="administrativo" />}
       {aba === "gravacoes" && <AbaGravacoes />}
+      {aba === "tarefas" && <AbaTarefasAdm papel="administrativo" inicial={resp.tarefasAdm} aoMudar={(c) => setNovasTf(c.novas || 0)} />}
       {aba === "avisos" && <PainelAvisos papel="administrativo" avisosIni={resp.avisos} tipos={resp.tipos || []} chavePush={resp.chavePush} />}
     </div>
   );
@@ -851,7 +938,7 @@ function TelaCentral() {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [estadoSalvar, setEstadoSalvar] = useState("");
-  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "administrativo", "gravacoes", "negocios", "revisao", "notas", "avisos"];
+  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "administrativo", "tarefasAdm", "gravacoes", "negocios", "revisao", "notas", "avisos"];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_HASH.indexOf(h) >= 0 ? h : "hoje"; });
   const [impl, setImpl] = useState(null);
   const [estadoImpl, setEstadoImpl] = useState("");
@@ -1037,7 +1124,7 @@ function TelaCentral() {
       </div>
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
-        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["gravacoes", "Gravações"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
+        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["tarefasAdm", "Tarefas do adm." + (resp && resp.tarefasAdm && resp.tarefasAdm.contagem.atrasadas ? " (" + resp.tarefasAdm.contagem.atrasadas + " atrasadas)" : "")], ["gravacoes", "Gravações"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
         {/* painel de gestão do Team Yoda (18/11/2026): saiu do app dos professores e abre daqui, em outra aba */}
         <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chipA(false), whiteSpace: "nowrap", flex: "none", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
       </div>
@@ -1240,6 +1327,7 @@ function TelaCentral() {
       })()}
 
       {aba === "gravacoes" && <AbaGravacoes />}
+      {aba === "tarefasAdm" && <AbaTarefasAdm papel="richard" inicial={resp.tarefasAdm} />}
       {aba === "implantacao" && impl && <AbaImplantacao lista={impl} mudar={mudarImpl} hoje={hoje} />}
       {aba === "rotina" && resp.rotina && <AbaRotina inicial={{ rotina: resp.rotina, ritmos: resp.ritmos, professores: resp.professores }} />}
       {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={(resp.agentesDef || []).filter((d) => d.para !== "administrativo")} papel="richard" />}

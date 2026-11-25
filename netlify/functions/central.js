@@ -49,6 +49,7 @@ const AG = require("./_central-agentes");
 const M = require("./_central-agentes-motor");
 const ADM = require("./_central-adm");
 const GR = require("./_central-gravacoes");
+const TF = require("./_central-tarefas");
 
 const NEGOCIOS = ["team-yoda", "39-ranch", "quadralab", "alvor", "geral"];
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
@@ -209,16 +210,16 @@ async function acaoEtapa2(b, claims) {
   return null;
 }
 async function extrasEtapa2() {
-  const hoje = hojeBR(), [rot, cfg, agentes, adm] = await Promise.all([lerRotinaOuPadrao(), M.lerConfig(db()), M.listar(db(), 40, "richard").catch(() => []), vistaAdm(hoje)]);
+  const hoje = hojeBR(), [rot, cfg, agentes, adm, tf] = await Promise.all([lerRotinaOuPadrao(), M.lerConfig(db()), M.listar(db(), 40, "richard").catch(() => []), vistaAdm(hoje), vistaTarefasAdm().catch(() => ({}))]);
   return { ...vistaRotina(rot, A.segundaDe(hoje)), proximoBloco: R.proximoBloco(rot, Date.now()), agentes, agentesConfig: AG.publicoConfig(cfg, hoje),
-    agentesDef: defsAgentes(), ...adm };
+    agentesDef: defsAgentes(), ...adm, ...tf };
 }
 function defsAgentes() {
   return Object.keys(AG.AGENTES).map((id) => ({ id, rot: AG.AGENTES[id].rot, desc: AG.AGENTES[id].desc, etapa: AG.AGENTES[id].etapa, ativo: AG.ativo(id), manual: !AG.AGENTES[id].quando, quando: AG.AGENTES[id].quando, para: AG.paraDe(id) }));
 }
 async function extrasAdm() {
-  const hoje = hojeBR(), [cfg, agentes, adm] = await Promise.all([M.lerConfig(db()), M.listar(db(), 40, "administrativo").catch(() => []), vistaAdm(hoje)]);
-  return { agentes, agentesConfig: AG.publicoConfig(cfg, hoje), agentesDef: defsAgentes().filter((d) => d.para === "administrativo"), ...adm };
+  const hoje = hojeBR(), [cfg, agentes, adm, tf] = await Promise.all([M.lerConfig(db()), M.listar(db(), 40, "administrativo").catch(() => []), vistaAdm(hoje), vistaTarefasAdm().catch(() => ({}))]);
+  return { agentes, agentesConfig: AG.publicoConfig(cfg, hoje), agentesDef: defsAgentes().filter((d) => d.para === "administrativo"), ...adm, ...tf };
 }
 
 async function torneiosProximos() {
@@ -310,9 +311,43 @@ async function acaoGravacoes(b, claims) {
   return vistaGravacoes();
 }
 
+/* Tarefas do administrativo (25/11/2026): o Richard cria, edita e apaga; o administrativo muda o status e comenta (o Richard
+   também pode). central/tarefasAdm. Aviso no celular: tarefa nova para o administrativo; concluída para o Richard.
+   POST { acao: "tarefasAdmVer" } | "tarefaAdmCriar" { tarefa } | "tarefaAdmEditar" { id, tarefa } | "tarefaAdmApagar" { id }
+        | "tarefaAdmStatus" { id, status?, comentario? }  → { tarefasAdm: vista } */
+async function lerTarefasAdm() { const d = await db().collection("central").doc("tarefasAdm").get().catch(() => null); return d && d.exists ? d.data().tarefas || [] : []; }
+async function vistaTarefasAdm() { return { tarefasAdm: TF.vista(await lerTarefasAdm(), hojeBR()) }; }
+async function acaoTarefasAdm(b, claims, papel) {
+  if (b.acao === "tarefasAdmVer") return vistaTarefasAdm();
+  const agora = new Date().toISOString(), por = papel === "richard" ? "Richard" : "Administrativo", ctx = { db: db(), agoraMs: Date.now(), enviar: (filtro, aviso) => P.avisar(admin, filtro, aviso) };
+  let lista = await lerTarefasAdm(), aviso = null;
+  try {
+    if (b.acao === "tarefaAdmCriar") {
+      if (papel !== "richard") throw new FIN._ErroPublico(403, "Só o Richard cria tarefas para o administrativo.");
+      const t = TF.nova(b.tarefa, por, agora); lista = [...lista, t];
+      aviso = { papel: "administrativo", a: { titulo: "Tarefa nova do Richard" + (t.prioridade === "alta" ? " (alta prioridade)" : ""), corpo: t.titulo + (t.prazo ? " · até " + t.prazo.split("-").reverse().join("/") : ""), url: "/#tarefas", tag: "central-tarefa-" + t.id } };
+    } else if (b.acao === "tarefaAdmEditar" || b.acao === "tarefaAdmApagar") {
+      if (papel !== "richard") throw new FIN._ErroPublico(403, "Só o Richard edita ou apaga as tarefas.");
+      lista = b.acao === "tarefaAdmApagar" ? TF.apagar(lista, String(b.id || "")) : TF.editar(lista, String(b.id || ""), b.tarefa, por, agora);
+    } else if (b.acao === "tarefaAdmStatus") {
+      const antes = lista.find((x) => x.id === String(b.id || ""));
+      lista = TF.mudarStatus(lista, String(b.id || ""), b.status ? String(b.status) : "", b.comentario, por, agora);
+      const depois = lista.find((x) => x.id === String(b.id || ""));
+      if (papel === "administrativo" && antes && antes.status !== "concluida" && depois.status === "concluida") {
+        const c = (depois.historico[depois.historico.length - 1] || {}).comentario;
+        aviso = { papel: "richard", a: { titulo: "Tarefa concluída pelo administrativo", corpo: depois.titulo + (c ? " · " + c.slice(0, 120) : ""), url: "/#tarefasAdm", tag: "central-tarefa-" + depois.id } };
+      }
+    } else throw new FIN._ErroPublico(400, "Ação desconhecida.");
+  } catch (e) { if (e instanceof FIN._ErroPublico) throw e; throw new FIN._ErroPublico(400, e.message); }
+  await db().collection("central").doc("tarefasAdm").set({ tarefas: TF.limpar(lista, agora), atualizado: Date.now() });
+  if (aviso) await M.avisarPapel(ctx, aviso.papel, aviso.a, "tarefasAdm").catch(() => {});
+  return vistaTarefasAdm();
+}
+
 async function acao(b, claims, papel) {
   const uid = String(claims.uid || "");
   if (b.acao === "gravacoesVer" || b.acao === "gravacoesMarcar") return acaoGravacoes(b, claims);
+  if (/^tarefa(s)?Adm/.test(String(b.acao || ""))) return acaoTarefasAdm(b, claims, papel);
   if (/^adm/.test(b.acao)) return acaoAdm(b, papel);
   if (b.acao === "agenteGerar" || b.acao === "agenteItem" || b.acao === "agentesListar") return acaoAgentes(b, claims, papel);
   if (/^(rotina|agente|caixaEntrada)/.test(b.acao)) {
