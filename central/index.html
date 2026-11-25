@@ -339,7 +339,9 @@ function PainelAvisos({ papel, avisosIni, tipos, chavePush }) {
   );
 }
 /* painel de gestão do Team Yoda: quadras, horários, clientes, torneios, eventos, relatório de aulas, financeiro/cobrança e equipe */
-const GESTAO_TY = "https://teamyoda.com.br/gestao";
+/* 25/11/2026 ("Precisa facilitar o acesso p mim e para o Adm"): a gestão do Team Yoda abre dentro da Central, no mesmo endereço
+   e com o mesmo login (o Netlify da Central repassa /ty/* para o site do Team Yoda). A coordenação segue em teamyoda.com.br/gestao. */
+const GESTAO_TY = "/ty/gestao";
 /* ── Gravações (24/11/2026): roteiro de gravação dos cursos da Academia Digital, lido do app pela function (só leitura).
    "No app" vem sozinho quando a aula tem link do YouTube; "Gravada" e "No YouTube" são marcados aqui (central/gravacoes). ── */
 const STATUS_GRAV = { agravar: ["A gravar", "#EEF1EF", "#5B6B63"], gravada: ["Gravada", "#FBF1D9", "#8A5A00"], youtube: ["No YouTube", "#E7F1FB", "#1F5C99"], app: ["No app", "#E5F4E4", "#2E6B2B"] };
@@ -550,7 +552,7 @@ function TelaAdministrativo({ resp }) {
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>A sua rotina, as viagens dos atletas, os rascunhos que a Central prepara para você e os avisos no celular.</p>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
         {ABAS_ADM.map(([v, r]) => <button key={v} data-aba-adm={v} style={chip(aba === v)} onClick={() => setAba(v)}>{r}{v === "agentes" && novos ? " (" + novos + ")" : ""}{v === "tarefas" && novasTf ? " (" + novasTf + ")" : ""}</button>)}
-        <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chip(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
+        <a href={GESTAO_TY} data-gestao-ty style={{ ...chip(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda</a>
       </div>
       {aba === "rotina-adm" && resp.rotinaAdm && <AbaRotinaAdm inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens, torneios: resp.torneios }} podeEditar />}
       {aba === "viagens" && <AbaViagens inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens || [], torneios: resp.torneios || [] }} podeEditar />}
@@ -1126,7 +1128,7 @@ function TelaCentral() {
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
         {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["tarefasAdm", "Tarefas do adm." + (resp && resp.tarefasAdm && resp.tarefasAdm.contagem.atrasadas ? " (" + resp.tarefasAdm.contagem.atrasadas + " atrasadas)" : "")], ["gravacoes", "Gravações"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
         {/* painel de gestão do Team Yoda (18/11/2026): saiu do app dos professores e abre daqui, em outra aba */}
-        <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chipA(false), whiteSpace: "nowrap", flex: "none", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
+        <a href={GESTAO_TY} data-gestao-ty style={{ ...chipA(false), whiteSpace: "nowrap", flex: "none", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda</a>
       </div>
 
       {aba === "hoje" && (() => {

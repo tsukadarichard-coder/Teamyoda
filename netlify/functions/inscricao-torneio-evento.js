@@ -191,7 +191,7 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
   if (org === "team-yoda") await avisarCentral({
     titulo: "Inscrição nova · " + resultado.eventoNome,
     corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : ""),
-    url: "https://teamyoda.com.br/gestao?aba=eventos", tag: "central-evento-" + eventoId,
+    url: "/ty/gestao?aba=eventos", tag: "central-evento-" + eventoId,
   });
   return resposta(200, { ok: true, eventoNome: resultado.eventoNome, status: resultado.status });
 }

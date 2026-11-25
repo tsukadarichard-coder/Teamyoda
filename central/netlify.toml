@@ -10,12 +10,26 @@
   status = 200
   force = true
 
+# Gestão do Team Yoda dentro da Central (25/11/2026): o mesmo painel de teamyoda.com.br/gestao, servido aqui em /ty/gestao,
+# com o mesmo login da Central (mesmo endereço e mesmo Firebase). Arquivos e functions do Team Yoda passam por /ty/*.
+[[redirects]]
+  from = "/ty/gestao"
+  to = "https://app.39tennis.com.br/gestao"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/ty/*"
+  to = "https://app.39tennis.com.br/:splat"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
     X-Frame-Options = "DENY"
-    Referrer-Policy = "same-origin"
+    Referrer-Policy = "strict-origin-when-cross-origin"
 
 [[headers]]
   for = "/manifest.json"
