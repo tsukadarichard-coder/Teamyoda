@@ -306,14 +306,27 @@
     var doseDe = function (ids) { var d = {}; info.forEach(function (x) { if (ids.indexOf(x.id) >= 0) d[x.id] = dose(x); }); return d; };
     var bloco = function (b) { b.id = "k" + (blocos.length + 1); b.ordem = blocos.length + 1; blocos.push(b); Object.keys(b.conteudoPorAtleta || {}).forEach(function (id) { usados[id + ":" + b.conteudoPorAtleta[id].id] = 1; }); };
     var conteudoIds = function (m) { var r = {}; Object.keys(m).forEach(function (id) { r[id] = { id: m[id].id, titulo: m[id].titulo, atrasado: !!m[id].atrasado }; }); return r; };
-    var mEntrada = Math.round(dur * 0.12), mIP = Math.round(dur * 0.2), mJogo = Math.round(dur * 0.18), resto = dur - mEntrada - mIP - mJogo;
+    /* Estrutura da sessão (pedido do Richard em 25/11/2026): Aquecimento, Técnica específica, parte geral (temas em comum,
+       tarefas individuais e jogo aplicado) e Saque e devolução no fim. o.aquecimento = [{ c, n }] (a lista fechada, dentro da
+       quadra, pela idade) e o.tecnica = { atletaId: { golpe, rotulo, c, n } } (o golpe da ficha) vêm do app; sem eles, o
+       aquecimento cai na base motora e a técnica específica fica de fora. */
+    var tec = o.tecnica || {}, comTec = todos.filter(function (id) { return tec[id] && tec[id].c; });
+    var mEntrada = Math.round(dur * 0.1), mTec = comTec.length ? Math.round(dur * 0.2) : 0, mIP = Math.round(dur * 0.15), mJogo = Math.round(dur * 0.15),
+      resto = dur - mEntrada - mTec - mIP - mJogo;
     var ex = function (tema, giro) { return exercicioPara(tema, o.catalogo, o.estagio, giro) || {}; };
-    bloco({ tipo: "coletivo", tema: "entrada", titulo: "Entrada e base motora", minutos: mEntrada, atletas: todos, conteudoPorAtleta: {}, dose: doseDe(todos),
-      codigoExercicio: (ex("fis:velocidade", 1)).c || null, nomeExercicio: (ex("fis:velocidade", 1)).n || null });
-    /* início do ponto: sempre coletivo (o método exige toda semana); conta para quem tem esse conteúdo pendente */
+    var aq = (o.aquecimento || []).filter(function (e) { return e && e.c; }), aq1 = aq.length ? aq[Math.floor(Math.random() * aq.length)] : ex("fis:velocidade", 1);
+    bloco({ tipo: "coletivo", tema: "entrada", titulo: "Aquecimento", minutos: mEntrada, atletas: todos, conteudoPorAtleta: {}, dose: doseDe(todos),
+      codigoExercicio: aq1.c || null, nomeExercicio: aq1.n || null });
+    /* técnica específica: um golpe isolado para cada atleta (estações por golpe); não conta como conteúdo do plano */
+    if (comTec.length) {
+      var tarefasTec = {};
+      comTec.forEach(function (id) { var t = tec[id]; tarefasTec[id] = [{ id: "te-" + t.golpe, titulo: t.rotulo + " isolado", tema: "tec:" + t.golpe, codigoExercicio: t.c, nomeExercicio: t.n || null, tecnica: true }]; });
+      blocos.push({ id: "k" + (blocos.length + 1), ordem: blocos.length + 1, tipo: "individual", tema: "tecnica", titulo: "Técnica específica", minutos: mTec, atletas: comTec, tarefas: tarefasTec, dose: doseDe(comTec), conteudoPorAtleta: {} });
+    }
+    /* saque e devolução: sempre, coletivo, no fim da sessão; conta para quem tem esse conteúdo pendente (reservado agora, para os
+       temas em comum não usarem os mesmos conteúdos) */
     var ip = porAtleta(function (p) { return p.tema === "ip:inicio" || p.tema === "tec:saque" || p.tema === "tec:devolucao"; });
-    bloco({ tipo: "coletivo", tema: "ip:inicio", titulo: TEMAS["ip:inicio"].r, minutos: mIP, atletas: todos, conteudoPorAtleta: conteudoIds(ip), dose: doseDe(todos),
-      codigoExercicio: ex("ip:inicio", 2).c || null, nomeExercicio: ex("ip:inicio", 2).n || null });
+    Object.keys(ip).forEach(function (id) { usados[id + ":" + ip[id].id] = 1; });
     /* temas em comum: 2 ou mais presentes com o mesmo tema pendente (tipo coletivo); primeiro o que é essencial para mais gente */
     var contagem = {};
     info.forEach(function (x) { x.pend.forEach(function (p) { if (p.tipo !== "coletivo" || usados[x.id + ":" + p.id] || p.tema === "ip:inicio") return; (contagem[p.tema] = contagem[p.tema] || {})[x.id] = contagem[p.tema][x.id] || p; }); });
@@ -339,6 +352,8 @@
     var regra = {}; info.forEach(function (x) { var t = x.pend.find(function (p) { return p.pilar === "tatico" && !usados[x.id + ":" + p.id]; }); if (t) regra[x.id] = t; });
     bloco({ tipo: "coletivo", tema: "jogo", titulo: "Jogo aplicado com regra", minutos: mJogo, atletas: todos.filter(function (id) { return info.find(function (x) { return x.id === id; }).teto.v !== "regenerativo"; }),
       conteudoPorAtleta: conteudoIds(regra), dose: doseDe(todos), codigoExercicio: ex("tat:plano", 4).c || null, nomeExercicio: ex("tat:plano", 4).n || null });
+    bloco({ tipo: "coletivo", tema: "ip:inicio", titulo: "Saque e devolução", minutos: mIP, atletas: todos, conteudoPorAtleta: conteudoIds(ip), dose: doseDe(todos),
+      codigoExercicio: ex("ip:inicio", 2).c || null, nomeExercicio: ex("ip:inicio", 2).n || null });
     return { data: hoje, duracaoMin: dur, presentes: todos, status: "rascunho", criadoEm: new Date().toISOString(),
       atletas: info.map(function (x) { return { id: x.id, nome: x.nome, teto: x.teto, semana: x.m ? { n: x.m.semanaN, bloco: x.m.blocoTitulo, fase: x.m.faseNome } : null, pendentes: x.pend.length }; }),
       blocos: blocos };
@@ -349,7 +364,7 @@
     (sessao.blocos || []).forEach(function (b) {
       if ((b.atletas || []).indexOf(alunoId) < 0) return;
       var c = b.conteudoPorAtleta && b.conteudoPorAtleta[alunoId]; if (c) out.push({ id: c.id, titulo: c.titulo, bloco: b.titulo });
-      ((b.tarefas && b.tarefas[alunoId]) || []).forEach(function (t) { out.push({ id: t.id, titulo: t.titulo, bloco: b.titulo }); });
+      ((b.tarefas && b.tarefas[alunoId]) || []).forEach(function (t) { if (!t.tecnica) out.push({ id: t.id, titulo: t.titulo, bloco: b.titulo }); });
     });
     return out;
   }

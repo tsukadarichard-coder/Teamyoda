@@ -94,17 +94,29 @@ const atletas = [
 const s = A.montarSessao({ atletas, hoje: "2026-11-12", duracaoMin: 120, catalogo: cat, estagio: "C" });
 assert.deepStrictEqual(s.presentes, ["a", "b", "c"]);
 assert.strictEqual(s.blocos.reduce((t, b) => t + b.minutos, 0), 120, "os blocos somam a duração");
-assert.strictEqual(s.blocos[0].tema, "entrada"); assert.strictEqual(s.blocos[1].tema, "ip:inicio");
-assert.strictEqual(s.blocos[s.blocos.length - 1].tema, "jogo");
+/* estrutura da sessão (25/11/2026): aquecimento primeiro, parte geral no meio, saque e devolução no fim */
+assert.strictEqual(s.blocos[0].tema, "entrada"); assert.strictEqual(s.blocos[0].titulo, "Aquecimento");
+assert.strictEqual(s.blocos[s.blocos.length - 1].tema, "ip:inicio"); assert.strictEqual(s.blocos[s.blocos.length - 1].titulo, "Saque e devolução");
+assert.strictEqual(s.blocos[s.blocos.length - 2].tema, "jogo");
 const fundo = s.blocos.find((b) => b.tema === "tec:fundo");
 assert(fundo && fundo.tipo === "coletivo" && fundo.atletas.sort().join() === "a,b", "Ana e Bia têm fundo pendente: bloco coletivo das duas");
 assert.strictEqual(s.atletas.find((a) => a.id === "c").teto.v, "regenerativo");
-assert.strictEqual(s.blocos[1].dose.c, "leve", "dose por atleta no bloco coletivo");
-assert(!s.blocos[s.blocos.length - 1].atletas.includes("c"), "regenerativo fica fora do jogo aplicado");
+assert.strictEqual(s.blocos.find((b) => b.tema === "ip:inicio").dose.c, "leve", "dose por atleta no bloco coletivo");
+assert(!s.blocos.find((b) => b.tema === "jogo").atletas.includes("c"), "regenerativo fica fora do jogo aplicado");
 const ind = s.blocos.find((b) => b.tipo === "individual");
 assert(ind && Object.keys(ind.tarefas).length >= 2, "tarefas individuais com o que sobrou do plano de cada um");
 const prev = A.conteudosDaSessao(s, "a");
 assert(prev.length >= 2 && prev.every((c) => c.id && c.titulo), "conteúdos previstos para Ana");
+/* com o aquecimento da lista fechada e a técnica específica de cada um (o app manda): a técnica entra logo depois do aquecimento,
+   em estações por atleta, e não conta como conteúdo do plano */
+const comTec = A.montarSessao({ atletas, hoje: "2026-11-12", duracaoMin: 120, catalogo: cat, estagio: "C",
+  aquecimento: [{ c: "AQ001", n: "Minitênis de ativação" }], tecnica: { a: { golpe: "forehand", rotulo: "Forehand", c: "TE001", n: "FH isolado" }, b: { golpe: "voleioFH", rotulo: "Voleio de forehand", c: "TE015", n: "Voleio FH isolado" } } });
+assert.strictEqual(comTec.blocos[0].codigoExercicio, "AQ001", "aquecimento da lista fechada");
+assert.strictEqual(comTec.blocos[1].tema, "tecnica"); assert.strictEqual(comTec.blocos[1].titulo, "Técnica específica");
+assert.deepStrictEqual(comTec.blocos[1].atletas.sort(), ["a", "b"]); assert.strictEqual(comTec.blocos[1].tarefas.a[0].codigoExercicio, "TE001");
+assert.strictEqual(comTec.blocos[comTec.blocos.length - 1].tema, "ip:inicio");
+assert.strictEqual(comTec.blocos.reduce((t, b) => t + b.minutos, 0), 120, "com a técnica, os blocos ainda somam a duração");
+assert(!A.conteudosDaSessao(comTec, "a").some((c) => /^te-/.test(c.id)), "técnica específica não vira conteúdo do plano no fechamento");
 /* sozinho no CT: a sessão ainda sai, sem bloco de tema em comum */
 const solo = A.montarSessao({ atletas: [atletas[1]], hoje: "2026-11-12", duracaoMin: 90, catalogo: cat, estagio: "C" });
 assert(!solo.blocos.some((b) => b.tipo === "coletivo" && !["entrada", "ip:inicio", "jogo"].includes(b.tema)) && solo.blocos.some((b) => b.tipo === "individual"));
