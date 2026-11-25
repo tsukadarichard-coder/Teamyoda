@@ -14,6 +14,8 @@ const TIPOS = {
   agentes: { rot: "Agentes com rascunho novo", papeis: ["richard"], etapa: 2 },
   pagamentosAlerta: { rot: "Pagamentos com 10 e 30 dias de atraso", papeis: ["richard"], etapa: 4 },
   rotinaAdm: { rot: "Rotina do administrativo", papeis: ["administrativo"], etapa: 3 },
+  /* 25/11/2026: tarefas que o Richard manda ao administrativo (ele recebe a nova; o Richard recebe a concluída) */
+  tarefasAdm: { rot: "Tarefas do administrativo (nova para ele, concluída para o Richard)", papeis: ["richard", "administrativo"], etapa: 3 },
   lembretesPagamento: { rot: "Lembretes de pagamento do dia", papeis: ["administrativo"], etapa: 4 },
 };
 const ETAPA_ATUAL = 3; // Etapa 2: blocos da rotina e agentes; Etapa 3 (13/11/2026): rotina do administrativo

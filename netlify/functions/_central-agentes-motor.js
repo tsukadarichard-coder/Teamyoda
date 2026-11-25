@@ -83,8 +83,8 @@ async function iaClaude(sistema, msg) {
 function iaPadrao() { return process.env.ANTHROPIC_API_KEY ? iaClaude : null; }
 
 /* avisa os aparelhos de um perfil (Richard: tipo "agentes"; administrativo: tipo "rotinaAdm"), respeitando o que a pessoa ligou e o silêncio */
-async function avisarPapel(ctx, papel, aviso) {
-  const tipo = papel === "administrativo" ? "rotinaAdm" : "agentes";
+async function avisarPapel(ctx, papel, aviso, tipoAviso) {
+  const tipo = tipoAviso || (papel === "administrativo" ? "rotinaAdm" : "agentes");
   const snap = await col(ctx.db, P.COLECAO).where("app", "==", "central").get(), uids = {};
   snap.forEach((d) => { const x = d.data(); if (x.uid && x.papel === papel) uids[x.uid] = 1; });
   for (const uid of Object.keys(uids)) {
