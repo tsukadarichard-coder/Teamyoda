@@ -118,6 +118,8 @@ assert.strictEqual(de2.estado["team-yoda"].alunos.length, 3); assert.strictEqual
 assert.strictEqual(de2.estado["team-yoda"].config.pendencias.length, 1); assert.strictEqual(de2.relatorio["team-yoda"].alunosNovos, 0);
 
 /* ── servidor: simular não grava; importar grava numa transação; administrativo só marca ── */
+/* jogadores: a lista em partes (mty:alunos:v3, 26/11/2026) quando existe; senão a antiga (v2) */
+const alunosDoBanco = (org) => { const b = "orgs/" + org + "/dados/", pr = banco[b + "mty:alunos:v3"]; if (!pr) return JSON.parse(banco[b + "mty:alunos:v2"].value); let t = ""; for (let i = 1; i <= pr.partes; i++) t += banco[b + "mty:alunos:v3~" + i].texto; return JSON.parse(t); };
 const banco = {
   "orgs/team-yoda/dados/mty:alunos:v2": { value: JSON.stringify(estado["team-yoda"].alunos) },
   "orgs/team-yoda/dados/mty:turmas:v1": { value: JSON.stringify(estado["team-yoda"].turmas) },
@@ -156,7 +158,7 @@ const post = (token, corpo) => chamar("POST", token, { body: JSON.stringify(corp
   /* importar de verdade */
   const imp = await post("dono", { acao: "importar", planilha: { abas }, simular: false });
   assert.strictEqual(imp.status, 200); assert.strictEqual(imp.corpo.simulado, false);
-  const alunos = JSON.parse(banco["orgs/team-yoda/dados/mty:alunos:v2"].value);
+  const alunos = alunosDoBanco("team-yoda");
   assert.strictEqual(alunos.length, 3); assert(banco["financeiro/team-yoda"].config.cobranca, "cobrança gravada");
   assert.strictEqual(banco["financeiro/team-yoda"].config.professores["n:Marta Fixa"].fixo, 3000, "chave de professor com espaço passa na limpeza");
   const bia2 = alunos.find((a) => a.nome === "Bia Rocha");
