@@ -72,10 +72,10 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
     ["Lia Souza", nasc(10), "maria@exemplo.com", "sim", "Alergia a amendoim", "confirmado", "cliente", false, "pendente"]);
   assert(c.autorizacaoEm && c.criancaIdade >= 9 && c.criancaIdade <= 10, "autorização com data e idade no evento");
   assert.deepStrictEqual([c.opcaoId, c.opcaoNome, c.valor], ["s2", "2 semanas", 800], "opção e valor guardados");
-  assert.strictEqual(avisos.length, 3); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
-  assert.deepStrictEqual(avisos.slice(1).map((a) => a.filtro.app + ":" + a.filtro.uid).sort(), ["central:u-adm", "central:u-ric"], "Central: Richard e administrativo (quem desligou não recebe)");
-  assert(avisos[1].aviso.url === "/ty/gestao?aba=eventos" && /Lia Souza/.test(avisos[1].aviso.corpo), "o aviso da Central abre Gestão › Eventos");
-  assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/" && /pela Central/.test(avisos[0].aviso.corpo), "o aviso não abre a gestão pelo app");
+  /* 26/11/2026: no Team Yoda a gestão fica só na Central; a coordenação não recebe mais o aviso */
+  assert.strictEqual(avisos.length, 2); assert(!avisos.some((a) => a.filtro.app === "treinador"), "coordenação do Team Yoda sem o aviso");
+  assert.deepStrictEqual(avisos.map((a) => a.filtro.app + ":" + a.filtro.uid).sort(), ["central:u-adm", "central:u-ric"], "Central: Richard e administrativo (quem desligou não recebe)");
+  assert(avisos[0].aviso.url === "/ty/gestao?aba=eventos" && /Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo), "o aviso da Central abre Gestão › Eventos");
   /* lotou: a próxima vai para a lista de espera */
   assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s4", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "opção fora do site não vale no site");
   /* diária avulsa: dias do evento, valor × dias (ocupa a última vaga) */
@@ -88,7 +88,7 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
   assert.deepStrictEqual([rui.opcaoNome, rui.dias, rui.valor], ["Diária avulsa", [diasEv[0], diasEv[2]], 200], "2 dias × R$ 100");
   r = await chamar("POST", { ...base, nomeContato: "João", opcaoId: "s1", criancaNome: "Theo", criancaNascimento: nasc(12), autorizacao: true });
   assert.deepStrictEqual([r.status, r.corpo.status], [200, "espera"]);
-  assert(/lista de espera/.test(avisos[avisos.length - 1].aviso.corpo) && avisos.filter((a) => a.filtro.app === "treinador").pop().aviso.corpo.includes("lista de espera"));
+  assert(/lista de espera/.test(avisos[avisos.length - 1].aviso.corpo));
   /* prazo vencido e evento sem faixa de idade (adulto) */
   assert.strictEqual((await chamar("POST", { ...base, eventoId: "ev2", criancaNome: "Lia", criancaNascimento: nasc(10), autorizacao: true })).status, 404, "fora do prazo");
   r = await chamar("POST", { org: "team-yoda", tipo: "evento", eventoId: "ev3", nomeContato: "Carlos", telefoneContato: "11 97777-6666" });

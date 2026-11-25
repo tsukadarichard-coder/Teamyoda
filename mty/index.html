@@ -12,6 +12,10 @@
    central-tsukada.netlify.app/ty/gestao (o Netlify da Central repassa /ty/* para este site). Lá o login é o mesmo da Central
    (mesmo endereço, mesmo Firebase) e as functions passam por /ty/.netlify/functions/… */
 window.NA_CENTRAL = /^\/ty\//.test(location.pathname);
+/* 26/11/2026 ("Deixe na central e pode tirar o acesso do coordenador"): a gestão do Team Yoda fica só na Central (Richard e
+   administrativo); teamyoda.com.br/gestao leva para lá. A 39 Ranch segue com o painel no próprio endereço (o app decide pela academia). */
+window.GESTAO_NA_CENTRAL = "https://central-tsukada.netlify.app/ty/gestao";
+if (!window.NA_CENTRAL && /^\/gestao\/?$/.test(location.pathname) && /(^|\.)teamyoda\.com\.br$/.test(location.hostname)) location.replace(window.GESTAO_NA_CENTRAL + location.search);
 if (window.NA_CENTRAL && window.fetch) {
   var fetchOriginal = window.fetch.bind(window);
   window.fetch = function (u, o) { if (typeof u === "string" && u.indexOf("/.netlify/functions/") === 0) u = "/ty" + u; return fetchOriginal(u, o); };
@@ -231,7 +235,7 @@ const storageFirestore = {
     try {
       await db.collection("orgs").doc(org).collection("dados").doc(key).set({ value, atualizado: Date.now() });
       return { key, value, shared: true };
-    } catch (e) { console.error("Firestore set:", e); return null; }
+    } catch (e) { console.error("Firestore set:", e); anotarErroNuvem(key, value, e); return null; }
   },
   async delete(key) {
     const org = await organizacao();
@@ -295,6 +299,16 @@ const storageLocal = {
    Todos os professores gravam a MESMA lista inteira. Antes, quem gravava por último apagava o que os
    outros tinham registrado, e cada um só via o que fez no próprio aparelho. Agora cada gravação lê a
    nuvem, junta (sync-listas.js) e grava o resultado; e a tela ouve a nuvem e recebe o que os outros fazem. */
+/* 26/11/2026 (cadastro de aluno novo não funcionava): a gravação na nuvem falhava calada (só no console). Agora o motivo fica
+   guardado para a tela avisar; cada lista da academia é UM documento do Firestore, que aceita até 1 MiB. */
+const LIMITE_DOC_NUVEM = 1048576;
+const bytesTexto = (t) => { try { return new TextEncoder().encode(String(t || "")).length; } catch (e) { return String(t || "").length; } };
+function anotarErroNuvem(chave, valor, e) {
+  try {
+    window.__erroNuvem = { chave, bytes: bytesTexto(valor), msg: String((e && e.message) || e || ""), em: Date.now() };
+    window.dispatchEvent(new CustomEvent("mty-erro-nuvem", { detail: window.__erroNuvem }));
+  } catch (x) { /* sem evento: fica só no console */ }
+}
 const SINC = { listas: new Set(["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1"]), base: {}, aoMudar: {}, local: {}, pronto: {} };
 if (db && window.MTYSync) {
   const getOrig = storageFirestore.get, setOrig = storageFirestore.set;
@@ -323,7 +337,7 @@ if (db && window.MTYSync) {
       /* a nuvem tinha coisas de outros professores: a tela passa a mostrá-las */
       if (JSON.stringify(juntada) !== JSON.stringify(local) && SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(local, atual, juntada));
       return { key, value: JSON.stringify(juntada), shared: true };
-    } catch (e) { console.error("Firestore set (junção):", e); return null; }
+    } catch (e) { console.error("Firestore set (junção):", e); anotarErroNuvem(key, value, e); return null; }
   };
   /* ouve a nuvem: o que outro professor registrar aparece aqui sem sair e entrar */
   storageFirestore.observar = async (key) => {
@@ -25624,7 +25638,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-gestao-total";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-nuvem";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
@@ -25633,7 +25647,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, so: "financeiro", t: "Acesso total ao painel de gestão", d: "O painel de gestão agora abre dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu). O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
+  { novo: true, t: "Aviso quando algo não salva na nuvem", d: "Se a nuvem recusar uma mudança nos jogadores ou nas turmas (por exemplo, o cadastro de um jogador novo), aparece um aviso vermelho no topo dizendo o que não foi salvo e por quê, com o botão Tentar de novo. Antes isso acontecia em silêncio e o jogador sumia ao abrir o app de novo. O cadastro de jogador novo no Team Yoda também não é mais barrado por limite de plano nem por data de licença.", onde: "Topo do app", aba: "alunos" },
+  { novo: true, so: "financeiro", t: "Gestão só na Central, com acesso total", d: "O painel de gestão do Team Yoda agora fica só dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu); teamyoda.com.br/gestao leva para lá, e a coordenação não entra mais na gestão. O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
   { t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
   { t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
   { t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
@@ -26588,6 +26603,30 @@ function TelaPendencias({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
    um aviso para passar a usar teamyoda.com.br/treinador. Só aparece quando o domínio novo já responde (a imagem de teste carrega),
    então não mostra nada enquanto o DNS não estiver pronto. "Agora não" esconde nesta sessão; "Já mudei" esconde de vez. */
 const DOMINIO_TY = "teamyoda.com.br";
+/* aviso de gravação que não chegou à nuvem (26/11/2026) e de lista de jogadores perto do limite do documento (1 MiB) */
+const NOMES_LISTA = { "mty:alunos:v2": "jogadores", "mty:turmas:v1": "turmas", "mty:eventos:v1": "eventos" };
+function AvisoNuvem({ erro, bytesAlunos, veTamanho, tentar }) {
+  const kb = (b) => Math.round(b / 1024).toLocaleString("pt-BR") + " KB";
+  const limite = kb(LIMITE_DOC_NUVEM);
+  if (erro) {
+    const grande = erro.bytes >= LIMITE_DOC_NUVEM * 0.98 || /size|exceeds|too large|maximum/i.test(erro.msg);
+    return (
+      <div role="alert" data-aviso-nuvem style={{ background: "#F8DCD8", color: "#5C1A12", border: "1px solid #E3A79E", borderRadius: 12, padding: "12px 14px", margin: "10px 0" }}>
+        <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: 0 }}>A última mudança em {NOMES_LISTA[erro.chave] || erro.chave} não foi salva na nuvem</p>
+        <p style={{ ...prosa, fontSize: 13, marginTop: 4, color: "#5C1A12" }}>
+          {grande ? "A lista ficou com " + kb(erro.bytes) + " e a nuvem aceita até " + limite + " por lista. Avise o Richard: é preciso dividir a lista para voltar a salvar." : "Motivo: " + (erro.msg || "sem resposta da nuvem") + ". Não feche o app; tente de novo em instantes."}
+        </p>
+        <button type="button" onClick={tentar} style={{ marginTop: 8, fontFamily: ARCH, fontSize: 13, fontWeight: 700, border: "1px solid #5C1A12", background: "#fff", color: "#5C1A12", borderRadius: 8, padding: "6px 12px", cursor: "pointer" }}>Tentar de novo</button>
+      </div>
+    );
+  }
+  if (veTamanho && bytesAlunos >= LIMITE_DOC_NUVEM * 0.8) return (
+    <div data-aviso-tamanho style={{ background: "#FFF7E6", border: "1px solid #E2C27A", borderRadius: 12, padding: "10px 14px", margin: "10px 0", ...prosa, fontSize: 13 }}>
+      A lista de jogadores está com {kb(bytesAlunos)} de {limite} que a nuvem aceita. Avise o Richard antes que ela encha.
+    </div>
+  );
+  return null;
+}
 function AvisoEnderecoNovo({ orgAtual }) {
   const ler = (k, area) => { try { return (area === "s" ? sessionStorage : localStorage).getItem(k) === "1"; } catch { return false; } };
   const [fechado, setFechado] = useState(() => ler("ty-endereco-novo") || ler("ty-endereco-novo", "s"));
@@ -28578,10 +28617,11 @@ function App() {
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
   /* parte administrativa do financeiro (e-mail cadastrado pelo dono): ganha só a tela Cobrança */
   const [papelFin, setPapelFin] = useState(null);
+  const [papelFinPronto, setPapelFinPronto] = useState(false);
   useEffect(() => {
-    if (!uidAtual || !autenticado) { setPapelFin(null); return; }
+    if (!uidAtual || !autenticado) { setPapelFin(null); setPapelFinPronto(false); return; }
     let vivo = true;
-    papelFinanceiro().then((p) => { if (vivo) setPapelFin(p); });
+    papelFinanceiro().then((p) => { if (vivo) { setPapelFin(p); setPapelFinPronto(true); } });
     return () => { vivo = false; };
   }, [uidAtual, autenticado]);
   /* Navegação: largura útil da tela decide o modo (computador, tablet, celular). No computador o menu lateral fica expandido ou
@@ -28732,7 +28772,12 @@ function App() {
     leia("mty:modelosMensagem:v1", MODELOS_MENSAGEM_PADRAO, true).then((m) => { setModelosMensagem({ ...MODELOS_MENSAGEM_PADRAO, ...(m || {}) }); prontoRef.current.modelosMensagem = true; setCarregandoModelos(false); });
     leia("mty:onboardingDispensado", false, true).then((v) => { setOnboardingDispensado(v); prontoRef.current.onboarding = true; });
 }, [autenticado, orgAtual]);
-  useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
+  /* falha ao salvar na nuvem (26/11/2026): aviso na tela com o motivo; some quando a mesma lista volta a salvar */
+  const [erroNuvem, setErroNuvem] = useState(null);
+  useEffect(() => { const f = (e) => setErroNuvem(e.detail); window.addEventListener("mty-erro-nuvem", f); return () => window.removeEventListener("mty-erro-nuvem", f); }, []);
+  const gravarLista = (chave, valor, comp) => grave(chave, valor, comp).then((ok) => { if (ok) setErroNuvem((e) => (e && e.chave === chave ? null : e)); return ok; });
+  const [bytesAlunos, setBytesAlunos] = useState(0);
+  useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) { setBytesAlunos(bytesTexto(JSON.stringify(alunos))); gravarLista("mty:alunos:v2", alunos); } }, [alunos, carregando, autenticado]);
   /* lixeira de jogos: todo jogo com pontos que some do caderno (excluído, descartado, apagado por outro aparelho) vai para a
      lixeira da academia e pode ser recuperado por 90 dias na aba Scout do jogador (scout/lixeira-jogos.js) */
   const alunosAntesRef = useRef(null);
@@ -28743,7 +28788,7 @@ function App() {
     const sumiram = window.QLLixeiraJogos.removidos(antes, alunos);
     if (sumiram.length) window.QLLixeiraJogos.criar(window.storage).guardar(sumiram).catch((e) => console.error("Lixeira de jogos:", e));
   }, [alunos, carregando]);
-  useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) gravarLista("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
   /* jogos com scout de quem tem link do aluno: resumos para a página do aluno (espera a edição assentar) */
   useEffect(() => {
     if (!autenticado || carregando || !prontoRef.current.alunos) return undefined;
@@ -28828,7 +28873,11 @@ function App() {
   /* 25/11/2026 (pedido do Richard: "Eu preciso do acesso total e o Adm tb"): no painel de gestão, o Richard (Financeiro) e o
      administrativo (Cobrança) veem todas as telas da coordenação, mesmo sem a conta ser de coordenador. No app nada muda. */
   const gestaoPainel = PAINEL_GESTAO && (ehDonoFinanceiro() || papelFin === "admin") && (orgAtual === "team-yoda" || orgAtual === "39-ranch");
-  const coordOuGestao = papelAtual === "coordenador" || gestaoPainel;
+  /* no painel só o Richard e o administrativo (26/11/2026); no app, a coordenação segue com o que já tinha (sino de reservas) */
+  const gestaoSoCentral = orgAtual === "team-yoda";
+  const coordOuGestao = PAINEL_GESTAO ? (gestaoPainel || (!gestaoSoCentral && papelAtual === "coordenador")) : papelAtual === "coordenador";
+  /* painel do Team Yoda aberto fora da Central (por app.39tennis.com.br/gestao): vai para a Central */
+  useEffect(() => { if (PAINEL_GESTAO && !window.NA_CENTRAL && gestaoSoCentral) location.replace(window.GESTAO_NA_CENTRAL + location.search); }, [gestaoSoCentral]);
   /* pedidos de cadastro parados: só interessa ao coordenador, então nem
      tenta buscar pros outros papéis. Sondagem simples — não precisa de
      tempo real pra um número que só o sininho mostra. */
@@ -28900,8 +28949,10 @@ function App() {
     ? alunos
     : alunos.filter((a) => !a.professorUid || a.professorUid === uidAtual);
 
-  const limitePlano = limiteDeAlunos(planoAtual);
-  const planoVencido = !!(planoAtivoAte && planoAtivoAte < new Date().toISOString().slice(0, 10));
+  /* 26/11/2026: o Team Yoda é a academia da casa — limite de jogadores e data de licença não barram cadastro novo */
+  const academiaDaCasa = orgAtual === "team-yoda";
+  const limitePlano = academiaDaCasa ? null : limiteDeAlunos(planoAtual);
+  const planoVencido = !academiaDaCasa && !!(planoAtivoAte && planoAtivoAte < new Date().toISOString().slice(0, 10));
   /* O Manual (Catálogo, Técnica, Táticas, Condução, Públicos, Como decide)
      é a documentação do método MTY da própria Team Yoda — não faz
      sentido pra uma academia com o método próprio dela. Academia sem o
@@ -28943,7 +28994,7 @@ function App() {
   const mostraDigital = ehCoordenador && (orgAtual === "team-yoda" || orgAtual === "39-ranch");
   const podePendencias = ehCoordenador || ehDonoFinanceiro();
   /* quem usa o painel de gestão: coordenação, o Richard (Financeiro) e o administrativo (Cobrança) */
-  const podeGestao = ehCoordenador || ehDonoFinanceiro() || papelFin === "admin";
+  const podeGestao = PAINEL_GESTAO ? (gestaoPainel || (!gestaoSoCentral && ehCoordenador)) : (ehCoordenador || ehDonoFinanceiro() || papelFin === "admin");
   const itensGestao = [
     ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : papelFin === "admin" ? [{ v: "cobranca", r: "Cobrança" }] : []),
     ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
@@ -29432,12 +29483,14 @@ function App() {
       <main className="mty-main px-5 py-6 mty-nav-anim" style={{ maxWidth: lateralVisivel && menuRecolhido ? 940 : 760, marginLeft: larguraLateral,
         paddingBottom: modoTela === "celular" ? "calc(84px + env(safe-area-inset-bottom))" : undefined }}>
         <AvisoEnderecoNovo orgAtual={orgAtual} />
+        <AvisoNuvem erro={erroNuvem} bytesAlunos={bytesAlunos} veTamanho={ehDonoFinanceiro() || papelFin === "admin" || papelAtual === "coordenador"}
+          tentar={() => { if (erroNuvem && erroNuvem.chave === "mty:turmas:v1") gravarLista("mty:turmas:v1", turmas, true); else gravarLista("mty:alunos:v2", alunos); }} />
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          PAINEL_GESTAO && !podeGestao ? (
-           uidAtual && papelFin === null && papelAtual === null ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> : (
+           uidAtual && (!orgAtual || (!papelFinPronto && !ehDonoFinanceiro())) ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> : (
            <div data-gestao-sem-acesso>
              <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Painel de gestão</h1>
-             <p style={{ ...prosa, marginTop: 6 }}>Este painel é da coordenação e do administrativo. Para as aulas, os jogadores e a agenda, use o app dos professores.</p>
+             <p style={{ ...prosa, marginTop: 6 }}>A gestão do Team Yoda fica na Central, só para o Richard e o administrativo. Para as aulas, os jogadores e a agenda, use o app dos professores.</p>
              <div className="mt-4"><Botao onClick={() => { window.location.href = ORIGEM_PUBLICA + "/treinador"; }}>Abrir o app dos professores</Botao></div>
            </div>)
          ) :

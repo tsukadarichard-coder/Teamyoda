@@ -180,14 +180,14 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
     return { eventoNome: evento.nome, status, crianca: inscricao.criancaNome || "" };
   });
 
-  /* aviso no celular da coordenação (o aviso é extra: se falhar, a inscrição continua valendo) */
-  await P.avisar(admin, { app: "treinador", orgId: org, papel: "coordenador" }, {
+  /* aviso no celular (é extra: se falhar, a inscrição continua valendo). 26/11/2026: no Team Yoda a gestão fica só na Central
+     (Richard e administrativo) e a coordenação não recebe mais; nas outras academias, a coordenação segue recebendo */
+  if (org !== "team-yoda") await P.avisar(admin, { app: "treinador", orgId: org, papel: "coordenador" }, {
     titulo: "Inscrição nova · " + resultado.eventoNome,
-    corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : "") + ". Veja em Gestão › Eventos, pela Central.",
-    /* 25/11/2026: o app não abre a gestão; o toque abre o app e a inscrição se vê no painel, pela Central */
+    corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : "") + ". Veja em Gestão › Eventos.",
     url: "/", tag: "evento-" + eventoId,
   });
-  /* e na Central, para o Richard e o administrativo (acesso total ao painel desde 25/11/2026): o toque abre Gestão › Eventos */
+  /* na Central, para o Richard e o administrativo: o toque abre Gestão › Eventos */
   if (org === "team-yoda") await avisarCentral({
     titulo: "Inscrição nova · " + resultado.eventoNome,
     corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : ""),
