@@ -2,6 +2,7 @@
    POST (treinador logado, com orgId) { tipo: "plano" | "observacao" | "relatorio", alunoId } → avisa o aluno/pais inscritos daquele
    jogador (Área do aluno ou link do aluno). O jogador precisa existir na lista da academia de quem chama.
    POST (só o dono) { tipo: "novidades", titulo?, corpo? } → avisa todo mundo inscrito neste site. */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const P = require("./_push");
 
@@ -16,8 +17,7 @@ const TEXTOS = {
 };
 
 async function nomeDoJogador(orgId, alunoId) {
-  const d = await admin.firestore().collection("orgs").doc(orgId).collection("dados").doc("mty:alunos:v2").get();
-  let lista = []; try { lista = d.exists ? JSON.parse(d.data().value || "[]") : []; } catch (e) { lista = []; }
+  let lista = []; try { lista = await LA.lerAlunos(admin.firestore().collection("orgs").doc(orgId).collection("dados")); } catch (e) { lista = []; }
   const a = lista.find((x) => x && String(x.id) === alunoId);
   return a ? String(a.nome || "o jogador").trim().split(/\s+/)[0] : null;
 }

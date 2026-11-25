@@ -19,6 +19,7 @@
    POST { acao: "marcar", org, mes, recebidos, pagos, pendencias, cobranca } → (dono ou admin) só as marcações
    POST { acao: "acesso", admins: [e-mails] }           → (dono) quem é da parte administrativa
    POST { acao: "importar", planilha, simular }         → (dono) migração da planilha (Let's Play/Airtable); simular só mostra o relatório */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const F = require("./_financeiro-calc");
 const IMP = require("./_financeiro-importar");
@@ -66,6 +67,8 @@ async function lerAcademia(org) {
   ]);
   const dados = {};
   nomes.forEach((k, i) => { let v = []; if (snaps[i].exists) { try { v = JSON.parse(snaps[i].data().value || "[]"); } catch (e) { v = []; } } dados[k] = Array.isArray(v) ? v : []; });
+  /* jogadores pela lista em partes (26/11/2026); a v2 só vale enquanto a v3 não existe */
+  try { dados.alunos = await LA.lerAlunos(base); } catch (e) { /* fica a leitura de cima */ }
   dados.professores = [];
   if (sols) sols.forEach((d) => { const x = d.data(); dados.professores.push({ uid: d.id, nome: x.nome || x.email || "Sem nome", email: x.email || "" }); });
   return { dados, config: cfg.exists ? (cfg.data().config || {}) : {} };
@@ -243,12 +246,15 @@ async function handleImportar(corpo, claims) {
     profs[a.org] = []; if (sols) sols.forEach((d) => { const x = d.data(); profs[a.org].push({ uid: d.id, nome: x.nome || x.email || "Sem nome", email: x.email || "" }); });
   }));
   const refs = {};
-  ACADEMIAS.forEach((a) => { const base = fs.collection("orgs").doc(a.org).collection("dados"); refs[a.org] = { alunos: base.doc(CHAVES_LISTA.alunos), turmas: base.doc(CHAVES_LISTA.turmas), config: fs.collection("financeiro").doc(a.org) }; });
+  ACADEMIAS.forEach((a) => { const base = fs.collection("orgs").doc(a.org).collection("dados"); refs[a.org] = { base, alunos: base.doc(CHAVES_LISTA.alunos), turmas: base.doc(CHAVES_LISTA.turmas), config: fs.collection("financeiro").doc(a.org) }; });
+  const principais = {};
   const montar = async (ler) => {
     const estado = {};
     for (const a of ACADEMIAS) {
-      const [sa, st, sc] = await Promise.all([ler(refs[a.org].alunos), ler(refs[a.org].turmas), ler(refs[a.org].config)]);
-      estado[a.org] = { alunos: listaDe(sa), turmas: listaDe(st), professores: profs[a.org], config: sc.exists ? (sc.data().config || {}) : {} };
+      /* jogadores pela lista em partes (26/11/2026, _lista-alunos.js); o principal lido volta para a gravação */
+      const [la, st, sc] = await Promise.all([LA.lerTexto(refs[a.org].base, ler), ler(refs[a.org].turmas), ler(refs[a.org].config)]);
+      principais[a.org] = la.principal;
+      estado[a.org] = { alunos: la.texto == null ? [] : (LA.lerJSON(la.texto) || []), turmas: listaDe(st), professores: profs[a.org], config: sc.exists ? (sc.data().config || {}) : {} };
     }
     return estado;
   };
@@ -262,7 +268,7 @@ async function handleImportar(corpo, claims) {
     plano = IMP.planejar(planilha, await montar((r) => tx.get(r)), { inicio });
     for (const a of ACADEMIAS) {
       const e = plano.estado[a.org], agora = Date.now();
-      if (e.mudou.alunos) tx.set(refs[a.org].alunos, { value: JSON.stringify(e.alunos), atualizado: agora });
+      if (e.mudou.alunos) LA.escrever(tx, refs[a.org].base, e.alunos, principais[a.org]);
       if (e.mudou.turmas) tx.set(refs[a.org].turmas, { value: JSON.stringify(e.turmas), atualizado: agora });
       if (e.mudou.config) { const limpa = desembrulhar(limpar(e.config)); Object.keys(limpa.meses).forEach((m) => { if (!mesValido(m)) delete limpa.meses[m]; }); tx.set(refs[a.org].config, { config: limpa, atualizado: agora, por: claims.email, importadoEm: agora }); }
     }

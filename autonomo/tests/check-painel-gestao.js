@@ -49,7 +49,7 @@ const FAKE = `window.firebase = (function () {
       get: function () { return Promise.resolve(res()); },
       onSnapshot: function (cb) { var f = function () { cb(res()); }; ouv.push(f); setTimeout(f, 0); return function () { var i = ouv.indexOf(f); if (i >= 0) ouv.splice(i, 1); }; } }; }
   var db = { collection: function (n) { return colRef(n); }, settings: function () {}, enablePersistence: function () { return Promise.resolve(); },
-    runTransaction: function (fn) { return fn({ get: function (r) { return r.get(); }, set: function (r, v, o) { r.set(v, o); }, update: function (r, v) { r.update(v); } }); } };
+    runTransaction: function (fn) { return fn({ get: function (r) { return r.get(); }, set: function (r, v, o) { r.set(v, o); }, update: function (r, v) { r.update(v); }, delete: function (r) { r.delete(); } }); } };
   var user = { uid: "u-" + (F.papel || "x"), email: F.email, displayName: "Conta teste", getIdToken: function () { return Promise.resolve("tk"); },
     getIdTokenResult: function () { return Promise.resolve({ claims: { orgId: F.org || "team-yoda", role: F.papel } }); } };
   var auth = { currentUser: user, onAuthStateChanged: function (cb) { setTimeout(function () { cb(user); }, 0); return function () {}; },

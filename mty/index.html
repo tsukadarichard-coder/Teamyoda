@@ -216,6 +216,35 @@ async function contarPedidosPendentes() {
   } catch (e) { return 0; }
 }
 
+/* ── lista de jogadores em partes (26/11/2026) ──
+   A lista inteira de jogadores ficava num documento só ("mty:alunos:v2"), que o Firestore limita a 1 MiB; o Team Yoda
+   chegou a 1.024 KB e nada mais salvava. Agora a chave "mty:alunos:v2" do app é guardada em "mty:alunos:v3": um documento
+   principal { partes, versao, bytes } e as partes "mty:alunos:v3~1", "~2"… { texto, versao }. Enquanto a v3 não existe,
+   lê-se a v2 (que fica guardada como estava); a primeira gravação cria a v3. Igual a netlify/functions/_lista-alunos.js. */
+const LISTAS_EM_PARTES = { "mty:alunos:v2": "mty:alunos:v3" };
+const MAX_CHARS_PARTE = 300000;
+const LIMITE_TRANSACAO_NUVEM = 9 * 1048576; /* uma gravação do Firestore aceita até 10 MiB */
+async function lerPartesNuvem(dados, key, ler) {
+  const g = ler || ((r) => r.get()), v3 = LISTAS_EM_PARTES[key];
+  const m = await g(dados.doc(v3));
+  if (m.exists && m.data() && m.data().partes > 0) {
+    const d = m.data();
+    const ps = await Promise.all([...Array(d.partes).keys()].map((i) => g(dados.doc(v3 + "~" + (i + 1)))));
+    if (ps.some((x) => !x.exists || x.data().versao !== d.versao)) throw new Error("lista sendo gravada");
+    return { texto: ps.map((x) => x.data().texto || "").join(""), principal: d };
+  }
+  const v2 = await g(dados.doc(key));
+  return { texto: v2.exists ? (v2.data().value || "[]") : null, principal: null };
+}
+function escreverPartesNuvem(tx, dados, key, texto, principalAntes) {
+  const v3 = LISTAS_EM_PARTES[key], versao = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), pedacos = [];
+  for (let i = 0; i < texto.length; i += MAX_CHARS_PARTE) pedacos.push(texto.slice(i, i + MAX_CHARS_PARTE));
+  if (!pedacos.length) pedacos.push("");
+  pedacos.forEach((t, i) => tx.set(dados.doc(v3 + "~" + (i + 1)), { texto: t, versao }));
+  for (let i = pedacos.length + 1; i <= ((principalAntes && principalAntes.partes) || 0); i++) tx.delete(dados.doc(v3 + "~" + i));
+  tx.set(dados.doc(v3), { partes: pedacos.length, versao, bytes: bytesTexto(texto), atualizado: Date.now() });
+}
+
 /* ── armazenamento: Firestore (por academia) ou localStorage, mesma assinatura ──
    Na nuvem não existe mais "local" vs "compartilhado" — uma vez logado
    numa academia, tudo que se lê e grava é da academia inteira. */
@@ -224,6 +253,12 @@ const storageFirestore = {
   async get(key) {
     const org = await organizacao();
     if (!org) return null;
+    if (LISTAS_EM_PARTES[key]) {
+      for (let i = 0; i < 3; i++) {
+        try { const r = await lerPartesNuvem(db.collection("orgs").doc(org).collection("dados"), key); return r.texto == null ? null : { key, value: r.texto, shared: true }; }
+        catch (e) { if (i === 2) { console.error("Firestore get (partes):", e); return null; } await new Promise((ok) => setTimeout(ok, 400)); }
+      }
+    }
     try {
       const snap = await db.collection("orgs").doc(org).collection("dados").doc(key).get();
       return snap.exists ? { key, value: snap.data().value, shared: true } : null;
@@ -233,6 +268,11 @@ const storageFirestore = {
     const org = await organizacao();
     if (!org) return null;
     try {
+      if (LISTAS_EM_PARTES[key]) {
+        const dados = db.collection("orgs").doc(org).collection("dados");
+        await db.runTransaction(async (tx) => { const r = await lerPartesNuvem(dados, key, (ref) => tx.get(ref)); escreverPartesNuvem(tx, dados, key, value, r.principal); });
+        return { key, value, shared: true };
+      }
       await db.collection("orgs").doc(org).collection("dados").doc(key).set({ value, atualizado: Date.now() });
       return { key, value, shared: true };
     } catch (e) { console.error("Firestore set:", e); anotarErroNuvem(key, value, e); return null; }
@@ -324,14 +364,21 @@ if (db && window.MTYSync) {
     const org = await organizacao();
     if (!org) return null;
     try {
-      const ref = db.collection("orgs").doc(org).collection("dados").doc(key);
+      const dados = db.collection("orgs").doc(org).collection("dados"), ref = dados.doc(key), emPartes = !!LISTAS_EM_PARTES[key];
       let juntada = local, nuvemIgual = false;
       await db.runTransaction(async (tx) => {
-        const snap = await tx.get(ref);
-        const nuvem = snap.exists ? (lerLista(snap.data().value) || []) : [];
+        let nuvem = [], existe = false, principal = null;
+        if (emPartes) { const r = await lerPartesNuvem(dados, key, (x) => tx.get(x)); existe = r.texto != null; nuvem = existe ? (lerLista(r.texto) || []) : []; principal = r.principal; }
+        else { const snap = await tx.get(ref); existe = snap.exists; nuvem = existe ? (lerLista(snap.data().value) || []) : []; }
         juntada = window.MTYSync.mesclar(SINC.base[key] || [], local, nuvem);
-        nuvemIgual = snap.exists && JSON.stringify(nuvem) === JSON.stringify(juntada);
-        if (!nuvemIgual) tx.set(ref, { value: JSON.stringify(juntada), atualizado: Date.now() });
+        /* a lista antiga (v2) ainda não virou partes: grava a v3 mesmo sem mudança */
+        nuvemIgual = existe && (!emPartes || principal) && JSON.stringify(nuvem) === JSON.stringify(juntada);
+        if (nuvemIgual) return;
+        const texto = JSON.stringify(juntada);
+        if (emPartes) {
+          if (bytesTexto(texto) > LIMITE_TRANSACAO_NUVEM) throw new Error("a lista ficou com " + Math.round(bytesTexto(texto) / 1024) + " KB e passa do limite de uma gravação");
+          escreverPartesNuvem(tx, dados, key, texto, principal);
+        } else tx.set(ref, { value: texto, atualizado: Date.now() });
       });
       SINC.base[key] = juntada;
       /* a nuvem tinha coisas de outros professores: a tela passa a mostrá-las */
@@ -343,7 +390,22 @@ if (db && window.MTYSync) {
   storageFirestore.observar = async (key) => {
     const org = await organizacao();
     if (!org || !SINC.listas.has(key)) return () => {};
-    return db.collection("orgs").doc(org).collection("dados").doc(key).onSnapshot((snap) => {
+    const dados = db.collection("orgs").doc(org).collection("dados");
+    if (LISTAS_EM_PARTES[key]) {
+      /* em partes: ouve o principal (versão nova) e lê as partes */
+      let ultima = "";
+      return dados.doc(LISTAS_EM_PARTES[key]).onSnapshot(async (snap) => {
+        if (!snap.exists || snap.metadata.hasPendingWrites || !SINC.pronto[key] || !SINC.pronto[key]()) return;
+        const v = (snap.data() || {}).versao || ""; if (!v || v === ultima) return; ultima = v;
+        let r; try { r = await lerPartesNuvem(dados, key); } catch (e) { ultima = ""; return; }
+        const nuvem = lerLista(r.texto);
+        if (!nuvem || JSON.stringify(nuvem) === JSON.stringify(SINC.base[key])) return;
+        const baseAntes = SINC.base[key] || [];
+        SINC.base[key] = nuvem;
+        if (SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(baseAntes, atual, nuvem));
+      }, (e) => console.error("Firestore observar (partes):", e));
+    }
+    return dados.doc(key).onSnapshot((snap) => {
       if (!snap.exists || snap.metadata.hasPendingWrites || !SINC.pronto[key] || !SINC.pronto[key]()) return;
       const nuvem = lerLista(snap.data().value);
       if (!nuvem || JSON.stringify(nuvem) === JSON.stringify(SINC.base[key])) return;
@@ -25638,7 +25700,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-nuvem";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-partes";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
@@ -25647,8 +25709,9 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Aviso quando algo não salva na nuvem", d: "Se a nuvem recusar uma mudança nos jogadores ou nas turmas (por exemplo, o cadastro de um jogador novo), aparece um aviso vermelho no topo dizendo o que não foi salvo e por quê, com o botão Tentar de novo. Antes isso acontecia em silêncio e o jogador sumia ao abrir o app de novo. O cadastro de jogador novo no Team Yoda também não é mais barrado por limite de plano nem por data de licença.", onde: "Topo do app", aba: "alunos" },
-  { novo: true, so: "financeiro", t: "Gestão só na Central, com acesso total", d: "O painel de gestão do Team Yoda agora fica só dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu); teamyoda.com.br/gestao leva para lá, e a coordenação não entra mais na gestão. O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
+  { novo: true, t: "Jogadores voltaram a salvar", d: "A lista de jogadores da academia tinha chegado ao limite de 1 MB que a nuvem aceita num arquivo só, e por isso o cadastro de jogador novo e as mudanças nas fichas, planos e registros de aula deixaram de ser salvos. Agora a lista é guardada em partes e não tem mais esse limite. Se alguma aula ou ficha dos últimos dias não aparece, registre de novo.", onde: "Jogadores", aba: "alunos" },
+  { t: "Aviso quando algo não salva na nuvem", d: "Se a nuvem recusar uma mudança nos jogadores ou nas turmas (por exemplo, o cadastro de um jogador novo), aparece um aviso vermelho no topo dizendo o que não foi salvo e por quê, com o botão Tentar de novo. Antes isso acontecia em silêncio e o jogador sumia ao abrir o app de novo. O cadastro de jogador novo no Team Yoda também não é mais barrado por limite de plano nem por data de licença.", onde: "Topo do app", aba: "alunos" },
+  { so: "financeiro", t: "Gestão só na Central, com acesso total", d: "O painel de gestão do Team Yoda agora fica só dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu); teamyoda.com.br/gestao leva para lá, e a coordenação não entra mais na gestão. O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
   { t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
   { t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
   { t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
@@ -26607,9 +26670,11 @@ const DOMINIO_TY = "teamyoda.com.br";
 const NOMES_LISTA = { "mty:alunos:v2": "jogadores", "mty:turmas:v1": "turmas", "mty:eventos:v1": "eventos" };
 function AvisoNuvem({ erro, bytesAlunos, veTamanho, tentar }) {
   const kb = (b) => Math.round(b / 1024).toLocaleString("pt-BR") + " KB";
-  const limite = kb(LIMITE_DOC_NUVEM);
+  /* jogadores ficam em partes (limite de uma gravação, 9 MiB); as outras listas são um documento só (1 MiB) */
+  const limDe = (chave) => (LISTAS_EM_PARTES[chave] ? LIMITE_TRANSACAO_NUVEM : LIMITE_DOC_NUVEM);
+  const limite = kb(erro ? limDe(erro.chave) : LIMITE_TRANSACAO_NUVEM);
   if (erro) {
-    const grande = erro.bytes >= LIMITE_DOC_NUVEM * 0.98 || /size|exceeds|too large|maximum/i.test(erro.msg);
+    const grande = erro.bytes >= limDe(erro.chave) * 0.98 || /size|exceeds|too large|maximum|passa do limite/i.test(erro.msg);
     return (
       <div role="alert" data-aviso-nuvem style={{ background: "#F8DCD8", color: "#5C1A12", border: "1px solid #E3A79E", borderRadius: 12, padding: "12px 14px", margin: "10px 0" }}>
         <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: 0 }}>A última mudança em {NOMES_LISTA[erro.chave] || erro.chave} não foi salva na nuvem</p>
@@ -26620,7 +26685,7 @@ function AvisoNuvem({ erro, bytesAlunos, veTamanho, tentar }) {
       </div>
     );
   }
-  if (veTamanho && bytesAlunos >= LIMITE_DOC_NUVEM * 0.8) return (
+  if (veTamanho && bytesAlunos >= LIMITE_TRANSACAO_NUVEM * 0.8) return (
     <div data-aviso-tamanho style={{ background: "#FFF7E6", border: "1px solid #E2C27A", borderRadius: 12, padding: "10px 14px", margin: "10px 0", ...prosa, fontSize: 13 }}>
       A lista de jogadores está com {kb(bytesAlunos)} de {limite} que a nuvem aceita. Avise o Richard antes que ela encha.
     </div>

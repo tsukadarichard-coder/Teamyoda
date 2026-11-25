@@ -6,6 +6,7 @@
 
    Só devolve "dia-hora" ocupado ou não — nunca o nome de aluno nem de
    turma, pra não vazar quem treina em qual horário. */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 
 class ErroPublico extends Error {
@@ -46,12 +47,11 @@ exports.handler = async function (event) {
     const info = await confereAcademiaHabilitada(org);
 
     const db = admin.firestore();
-    const [snapAlunos, snapTurmas, snapBloqueios] = await Promise.all([
-      db.collection("orgs").doc(org).collection("dados").doc(CHAVE_ALUNOS).get(),
+    const [alunos, snapTurmas, snapBloqueios] = await Promise.all([
+      LA.lerAlunos(db.collection("orgs").doc(org).collection("dados")),
       db.collection("orgs").doc(org).collection("dados").doc(CHAVE_TURMAS).get(),
       db.collection("orgs").doc(org).collection("dados").doc(CHAVE_BLOQUEIOS).get(),
     ]);
-    const alunos = snapAlunos.exists ? JSON.parse(snapAlunos.data().value || "[]") : [];
     const turmas = snapTurmas.exists ? JSON.parse(snapTurmas.data().value || "[]") : [];
     const bloqueios = snapBloqueios.exists ? JSON.parse(snapBloqueios.data().value || "[]") : [];
 

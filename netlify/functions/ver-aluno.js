@@ -6,6 +6,7 @@
    Firestore (o Admin SDK ignora regras) — é o "linkToken" gerado por
    jogador: sem ele batendo exatamente, a function nem devolve o nome,
    nem aceita gravar nada. */
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const { limpar: limparResumoJogo } = require("./_scout-publico");
 
@@ -169,13 +170,13 @@ async function salvarFeedbacksCoord(ref, mapa) {
    então não usa o linkToken do link público. */
 async function carregarContexto(org, id, t, semToken) {
   app();
-  const refAlunos = admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_ALUNOS);
-  const snap = await refAlunos.get();
-  if (!snap.exists) throw new ErroPublico(404, "Não encontrei essa academia.");
-
-  let alunos;
-  try { alunos = JSON.parse(snap.data().value || "[]"); }
-  catch (e) { throw new ErroPublico(500, "Dados da academia corrompidos."); }
+  /* lista de jogadores em partes (26/11/2026, _lista-alunos.js); refAlunos agora é a pasta "dados" da academia */
+  const refAlunos = admin.firestore().collection("orgs").doc(org).collection("dados");
+  let lido;
+  try { lido = await LA.lerTexto(refAlunos); } catch (e) { throw new ErroPublico(503, "A academia está salvando dados agora; tente de novo em instantes."); }
+  if (lido.texto == null) throw new ErroPublico(404, "Não encontrei essa academia.");
+  const alunos = LA.lerJSON(lido.texto);
+  if (!alunos) throw new ErroPublico(500, "Dados da academia corrompidos.");
 
   const idx = alunos.findIndex((a) => a.id === id);
   if (idx < 0 || (!semToken && (!alunos[idx].linkToken || alunos[idx].linkToken !== t))) {
@@ -561,8 +562,13 @@ async function executarAcao(org, id, body, ctx) {
   throw new ErroPublico(400, "Ação desconhecida.");
 }
 
-async function salvar(refAlunos, alunos) {
-  await refAlunos.set({ value: JSON.stringify(alunos), atualizado: Date.now() });
+/* grava só a mudança deste jogador, numa transação sobre a lista atual (não sobrescreve o que os professores mudaram nos outros) */
+async function salvar(refAlunos, id, mudar) {
+  await LA.mudarAlunos(admin.firestore(), refAlunos, (lista) => {
+    const i = lista.findIndex((a) => a && a.id === id);
+    if (i < 0) return null;
+    const l = lista.slice(); l[i] = mudar(l[i]); return l;
+  });
 }
 
 /* O que o aluno gostaria de trabalhar / suas dúvidas — diferente do
@@ -578,9 +584,7 @@ async function acaoDuvida(refAlunos, alunos, idx, aluno, body) {
     texto: texto.slice(0, LIMITE_TEXTO),
     status: "pendente",
   };
-  aluno.pedidosConteudo = [item, ...(aluno.pedidosConteudo || [])].slice(0, LIMITE_LISTA);
-  alunos[idx] = aluno;
-  await salvar(refAlunos, alunos);
+  await salvar(refAlunos, aluno.id, (a) => ({ ...a, pedidosConteudo: [item, ...(a.pedidosConteudo || [])].slice(0, LIMITE_LISTA) }));
   return resposta(200, { ok: true, mensagem: "Enviado — seu treinador vai avaliar e pode incluir isso no seu planejamento." });
 }
 
@@ -602,9 +606,7 @@ async function acaoTexto(refAlunos, alunos, idx, aluno, body, campo) {
   const texto = String(body.texto || "").trim();
   if (!texto) throw new ErroPublico(400, "Escreva algo antes de enviar.");
   const item = { id: campo + "-" + Date.now().toString(36), data: new Date().toISOString(), texto: texto.slice(0, LIMITE_TEXTO) };
-  aluno[campo] = [item, ...(aluno[campo] || [])].slice(0, LIMITE_LISTA);
-  alunos[idx] = aluno;
-  await salvar(refAlunos, alunos);
+  await salvar(refAlunos, aluno.id, (a) => ({ ...a, [campo]: [item, ...(a[campo] || [])].slice(0, LIMITE_LISTA) }));
   return resposta(200, { ok: true, mensagem: "Enviado." });
 }
 

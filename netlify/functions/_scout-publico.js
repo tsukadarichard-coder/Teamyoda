@@ -1,6 +1,7 @@
 /* Núcleo do link do scout (usado por scout-publico.js e por player-scouts.js): confere o token da partida, a validade e a revogação, e devolve
    só o resumo que o treinador publicou, com tipos e tamanhos conferidos. Quem chama nunca recebe o token de volta. */
 const crypto = require("crypto");
+const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 
 const CHAVE_ALUNOS = "mty:alunos:v2";
@@ -89,8 +90,7 @@ async function lerResumoPublico(ref, cache) {
   app();
   let alunos = cache && cache.get(org);
   if (alunos === undefined) {
-    const snap = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_ALUNOS).get();
-    try { alunos = snap.exists ? JSON.parse(snap.data().value || "[]") : null; } catch (e) { alunos = null; }
+    try { alunos = await LA.lerAlunos(admin.firestore().collection("orgs").doc(org).collection("dados")); } catch (e) { alunos = null; }
     if (cache) cache.set(org, alunos);
   }
   if (!Array.isArray(alunos)) return null;
