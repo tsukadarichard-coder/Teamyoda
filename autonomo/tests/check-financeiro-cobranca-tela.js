@@ -44,7 +44,9 @@ const carregar = Module._load;
 Module._load = function (pedido) { if (/_firebase-admin$/.test(pedido)) return { admin: adminFalso, app: () => {} }; return carregar.apply(this, arguments); };
 const fin = require(path.join(__dirname, "../../netlify/functions/financeiro.js"));
 const posts = [];
-const lista = (k) => JSON.parse(banco["orgs/team-yoda/dados/" + k].value);
+/* jogadores: a lista em partes (mty:alunos:v3, 26/11/2026) quando existe; senão a antiga (v2) */
+const alunosDoBanco = (org) => { const b = "orgs/" + org + "/dados/", pr = banco[b + "mty:alunos:v3"]; if (!pr) return JSON.parse(banco[b + "mty:alunos:v2"].value); let t = ""; for (let i = 1; i <= pr.partes; i++) t += banco[b + "mty:alunos:v3~" + i].texto; return JSON.parse(t); };
+const lista = (k) => (k === "mty:alunos:v2" ? alunosDoBanco("team-yoda") : JSON.parse(banco["orgs/team-yoda/dados/" + k].value));
 const cfg = () => banco["financeiro/team-yoda"].config;
 
 const m = { "/aulas-mes.js": path.join(__dirname, "../../mty/aulas-mes.js"), "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.development.js",
