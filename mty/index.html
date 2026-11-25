@@ -4771,6 +4771,109 @@ function CadastroRapido({ uidAtual, aoCriar, aoCancelar }) {
     </form>
   );
 }
+/* ── Ficha rápida (pedido do Richard em 25/11/2026: "ele só faz uma primeira classificação do aluno, mais simples, mais compacta,
+   e monta as turmas, gera planos individuais para cada um") ──
+   Uma tela só: nome, nascimento, WhatsApp, estágio, nível rápido (três degraus que viram o nível Y do estágio), objetivo,
+   backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao concluir, a IA gera o plano individual
+   (o professor revisa e aprova, como sempre). O resto (rotina, critérios, perfil de jogo, físico, contexto) vai para a aba
+   Avaliação, preenchida com o tempo. A ficha completa de 5 etapas continua para quem quiser. */
+const NIVEL_RAPIDO = { V: ["Y1", "Y1", "Y2"], L: ["Y2", "Y2", "Y3"], G: ["Y3", "Y3", "Y4"], A: ["Y2", "Y3", "Y4"], C: ["Y4", "Y5", "Y6"] };
+const DEGRAUS_RAPIDOS = [{ i: 0, r: "Começando" }, { i: 1, r: "Intermediário" }, { i: 2, r: "Avançado" }];
+const OBJETIVOS_RAPIDOS = [{ v: "lazer", r: "Lazer e saúde" }, { v: "evoluir", r: "Evoluir no jogo" }, { v: "competir", r: "Competir" }];
+function nivelRapido(estagio, degrau) { const l = NIVEL_RAPIDO[estagio]; return l ? l[Math.max(0, Math.min(2, Number(degrau) || 0))] : ""; }
+function novoAlunoFichaRapida(d, professorNome) {
+  const nivel = nivelRapido(d.estagio, d.degrau), categoria = categoriaPeloNivel(d.estagio, nivel), agora = new Date().toISOString();
+  return { ...novoAluno(), nome: String(d.nome || "").trim(), nascimento: d.nascimento || "", telefone: d.telefone || "", telefoneResponsavel: d.telefoneResponsavel || "",
+    estagio: d.estagio, nivel, ...(categoria ? { categoria } : {}), objetivoRapido: d.objetivo || "", backhand: d.backhand || "", golpesTecnicos: (d.golpesTecnicos || []).slice(0, 2),
+    professorUid: d.professorUid || "", professorNome: professorNome || "", aulasPorSemana: Number(d.aulasPorSemana) || 2,
+    ondeTreina: d.onde === "individual" ? "individual" : d.onde === "definir" ? "definir" : "turma",
+    fichaRapida: true, cadastroConcluido: true, soCadastro: false, fichaAtualizadaEm: agora, criadoEm: agora };
+}
+function FichaRapida({ uidAtual, turmas, aoCriar, aoCancelar, aoFichaCompleta }) {
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { listaProfessores().then(setProfessores).catch(() => {}); }, []);
+  const [d, setD] = useState({ nome: "", nascimento: "", telefone: "", telefoneResponsavel: "", estagio: "", degrau: null, objetivo: "", backhand: "", golpesTecnicos: [],
+    professorUid: uidAtual || "", onde: "individual", aulasPorSemana: 2, gerarIA: true });
+  const [erro, setErro] = useState("");
+  const set = (k, v) => { setErro(""); setD((x) => ({ ...x, [k]: v })); };
+  const crianca = ["V", "L", "G"].includes(d.estagio) || (d.nascimento && (Date.now() - Date.parse(d.nascimento)) / 31557600000 < 18);
+  const nivel = d.estagio && d.degrau != null ? nivelRapido(d.estagio, d.degrau) : "";
+  const chip = (on, desab) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "7px 12px", borderRadius: 999, cursor: desab ? "default" : "pointer", opacity: desab ? 0.45 : 1,
+    border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta });
+  const chips = (opcoes, valor, aoMudar, attr) => (
+    <div className="flex flex-wrap gap-2" {...attr}>{opcoes.map((o) => <button key={o.v} type="button" aria-pressed={valor === o.v} style={chip(valor === o.v)} onClick={() => aoMudar(o.v)}>{o.r}</button>)}</div>
+  );
+  function criar(ev) {
+    ev.preventDefault();
+    if (d.nome.trim().length < 2) { setErro("Escreva o nome do aluno."); return; }
+    if (!d.estagio) { setErro("Escolha o estágio."); return; }
+    if (d.degrau == null) { setErro("Escolha o nível rápido."); return; }
+    const prof = professores.find((p) => p.uid === d.professorUid);
+    aoCriar(novoAlunoFichaRapida(d, prof ? prof.nome : ""), { turmaId: d.onde !== "individual" && d.onde !== "definir" ? d.onde : null, gerarIA: d.gerarIA });
+  }
+  const T = window.MTYTecnica;
+  return (
+    <form onSubmit={criar} noValidate data-ficha-rapida className="mt-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "15px 15px 6px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginBottom: 2 }}>Novo aluno · ficha rápida</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 12 }}>Uma primeira classificação, em poucos minutos. O resto você completa com o tempo na aba Avaliação do aluno.</p>
+      <Campo rotulo="Nome do aluno"><input style={entrada} value={d.nome} onChange={(e) => set("nome", e.target.value)} autoComplete="off" data-rapida-nome /></Campo>
+      <Campo rotulo="Nascimento"><input type="date" style={entrada} value={d.nascimento} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
+      <Campo rotulo={crianca ? "WhatsApp do responsável" : "WhatsApp do aluno"}>
+        <input style={entrada} inputMode="tel" value={crianca ? d.telefoneResponsavel : d.telefone} onChange={(e) => set(crianca ? "telefoneResponsavel" : "telefone", e.target.value)} placeholder="(11) 98888-8888" />
+      </Campo>
+      <Campo rotulo="Estágio">{chips(ESTAGIOS.map((e) => ({ v: e.s, r: e.n })), d.estagio, (v) => set("estagio", v), { "data-rapida-estagio": "" })}</Campo>
+      <Campo rotulo="Nível rápido" nota={nivel ? "Começa no nível " + nivel + " · " + nomeNivel(nivel) + ". A classificação por critérios, na aba Avaliação, confirma ou corrige." : "Uma estimativa dentro do estágio."}>
+        <div className="flex flex-wrap gap-2" data-rapida-nivel>{DEGRAUS_RAPIDOS.map((g) => <button key={g.i} type="button" aria-pressed={d.degrau === g.i} disabled={!d.estagio} style={chip(d.degrau === g.i, !d.estagio)} onClick={() => set("degrau", g.i)}>{g.r}</button>)}</div>
+      </Campo>
+      <Campo rotulo="Objetivo">{chips(OBJETIVOS_RAPIDOS, d.objetivo, (v) => set("objetivo", v))}</Campo>
+      <Campo rotulo="Backhand">{chips([{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }], d.backhand, (v) => set("backhand", v))}</Campo>
+      {T && (
+        <Campo rotulo="Golpe da parte técnica" nota="Até 2. A sessão alterna entre eles na técnica específica. Pode deixar em branco: a sessão roda pelos golpes.">
+          <div className="flex flex-wrap gap-2" data-rapida-golpes>
+            {T.GOLPES.filter((g) => !g.bh || g.bh === (d.backhand === "uma" ? "1" : "2")).map((g) => {
+              const on = d.golpesTecnicos.includes(g.id), cheio = !on && d.golpesTecnicos.length >= 2;
+              return <button key={g.id} type="button" aria-pressed={on} disabled={cheio} style={chip(on, cheio)} data-golpe={g.id}
+                onClick={() => set("golpesTecnicos", on ? d.golpesTecnicos.filter((x) => x !== g.id) : [...d.golpesTecnicos, g.id])}>{g.r}</button>;
+            })}
+          </div>
+        </Campo>
+      )}
+      {professores.length > 0 && (
+        <Campo rotulo="Professor">
+          <select style={entrada} value={d.professorUid} onChange={(e) => set("professorUid", e.target.value)}>
+            <option value="">Sem professor definido</option>
+            {professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+          </select>
+        </Campo>
+      )}
+      <Campo rotulo="Onde treina">
+        <select style={entrada} value={d.onde} onChange={(e) => set("onde", e.target.value)} data-rapida-onde>
+          <option value="individual">Aulas individuais</option>
+          <option value="definir">A definir (montar turma depois)</option>
+          {(turmas || []).map((t) => <option key={t.id} value={t.id}>Turma {t.nome}</option>)}
+        </select>
+      </Campo>
+      <Campo rotulo="Aulas por semana">{chips([1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) })), d.aulasPorSemana, (v) => set("aulasPorSemana", v))}</Campo>
+      <label className="flex items-center gap-2" style={{ ...prosa, fontSize: 13.5, marginBottom: 12 }}>
+        <input type="checkbox" checked={d.gerarIA} onChange={(e) => set("gerarIA", e.target.checked)} data-rapida-ia /> Gerar o plano individual com IA ao salvar (você revisa antes de valer)
+      </label>
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#B3261E", marginBottom: 8 }}>{erro}</p>}
+      <div className="flex gap-2 flex-wrap mb-3">
+        <Botao variante="saibro" type="submit">Salvar e gerar plano</Botao>
+        <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>
+        {aoFichaCompleta && <button type="button" onClick={aoFichaCompleta} style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: "none", border: "none", textDecoration: "underline", cursor: "pointer" }}>Prefiro a ficha completa (5 etapas)</button>}
+      </div>
+    </form>
+  );
+}
+/* dispara a geração do plano individual por IA em segundo plano (o mesmo caminho do botão do Plano: o relógio do App resolve e
+   o plano chega para revisão). Devolve o geracaoPlano para gravar no aluno, ou null se não deu (sem conta, sem academia). */
+async function dispararPlanoIAAluno(aluno) {
+  const semanas = 4, aulasSem = Number(aluno.aulasPorSemana) || 2;
+  const prompt = promptPlanoEstruturado(aluno, semanas, aulasSem, aluno.historicoRelatorios || [], { tecnico: 50, tatico: 50, fisico: 50, pontos: 50 });
+  const { jobId } = await iniciarJobIA(prompt, 16000);
+  return { status: "gerando", jobId, iniciadoEm: new Date().toISOString(), estagiosAlvo: [aluno.estagio], golpesProblema: golpesComProblema(aluno) };
+}
 /* Área do aluno sem link (pedido do Richard em 17/11/2026): até 2 e-mails de acesso na ficha (aluno e/ou responsável) e o convite,
    que manda o e-mail do Firebase para criar a senha. Quem entra em teamyoda.com.br/minha-area com um destes e-mails, confirmado,
    vê o aluno sozinho (netlify/functions/digital.js). Tirar o e-mail daqui corta esse acesso; o link do aluno continua como antes. */
@@ -5207,6 +5310,11 @@ function relatorioFicha(a) {
   L.push("Prioridades: " + (a.prioridades || []).map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
   L.push("Arma(s) do jogador: " + (armasDoJogador(a).map((id) => AREAS[id].nome).join(" · ") || "[não definida]"));
   if ((a.objetivoFinal || "").trim()) L.push("Objetivo final: " + a.objetivoFinal.trim());
+  /* ficha rápida (25/11/2026): o que o professor marcou na primeira classificação */
+  if (a.objetivoRapido) L.push("Objetivo (ficha rápida): " + ((OBJETIVOS_RAPIDOS.find((o) => o.v === a.objetivoRapido) || {}).r || a.objetivoRapido));
+  if ((a.golpesTecnicos || []).length && window.MTYTecnica) L.push("Golpe(s) da parte técnica escolhidos pelo professor: " + a.golpesTecnicos.map((g) => (window.MTYTecnica.GOLPE[g] || {}).r || g).join(" e "));
+  if (a.aulasPorSemana) L.push("Aulas por semana: " + a.aulasPorSemana);
+  if (a.fichaRapida) L.push("Ficha rápida: a primeira classificação é uma estimativa; o que estiver [em branco] ainda não foi observado — não invente, planeje com o que existe e com o nível de referência.");
   if ((a.pedidosConteudoAprovados || []).length) {
     L.push("");
     L.push("PEDIDOS DO PRÓPRIO JOGADOR, APROVADOS PELO TREINADOR (pelo link dele)");
@@ -5760,6 +5868,38 @@ function textoEnfase(enfase) {
   ];
 }
 
+/* ── Fim do ciclo alimenta o próximo plano (pedido do Richard em 25/11/2026) ──
+   desdeDoCiclo: o início do ciclo que está terminando (o último relatório de ciclo, o plano atual ou 90 dias atrás).
+   resumoDoCiclo: os números, contados sem IA, que o professor vê antes de gerar. registrosParaPrompt: o que aconteceu em cada
+   aula (o que corrigiu, o que deixou passar, o próximo foco, a leitura da aula, os temas com o status e a conquista do dia). */
+function desdeDoCiclo(a) {
+  const ult = ((a && a.historicoRelatorios) || [])[0];
+  const doPlano = a && a.plano && (a.plano.aprovadoEm || a.plano.geradoEm);
+  const datas = [ult && ult.data, doPlano].filter(Boolean).map((d) => String(d).slice(0, 10)).sort();
+  return datas.length ? datas[datas.length - 1] : new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+}
+function resumoDoCiclo(a) {
+  const desde = desdeDoCiclo(a), regs = ((a && a.registros) || []).filter((r) => r && r.data >= desde);
+  const aulas = regs.filter((r) => r.tipo === "sessao"), temas = { atingiu: 0, parcial: 0, nao_atingiu: 0 };
+  aulas.forEach((r) => (r.temas || []).forEach((t) => { if (temas[t.status] != null) temas[t.status]++; }));
+  const reg = (a && a.regPlano) || {}, faltas = Object.values(reg).filter((x) => x && x.status === "falta" && (x.data || "") >= desde).length;
+  const conquistas = aulas.filter((r) => r.conquista && (r.conquista.texto || "").trim());
+  return { desde, aulas: aulas.length, faltas, temas, conquistas: conquistas.length, marcos: conquistas.filter((r) => r.conquista.marco).length,
+    jogos: regs.filter((r) => r.tipo === "jogo").length, prioridadesAbertas: ((a && a.prioridadesObservadas) || []).filter((p) => p && p.status !== "resolvida").length };
+}
+function registrosParaPrompt(a) {
+  const desde = desdeDoCiclo(a), aulas = ((a && a.registros) || []).filter((r) => r && r.tipo === "sessao" && r.data >= desde).slice(-30);
+  if (!aulas.length) return "";
+  const ROT = { atingiu: "atingiu", parcial: "parcial", nao_atingiu: "não atingiu" };
+  return ["REGISTROS DAS AULAS DESTE CICLO (desde " + desde.split("-").reverse().join("/") + ") — o que o professor viu em quadra; o novo plano parte daqui:",
+    ...aulas.map((r) => {
+      const partes = [r.data.split("-").reverse().join("/") + (r.aulaDoPlano ? " · " + r.aulaDoPlano : "")];
+      if ((r.temas || []).length) partes.push("temas: " + r.temas.map((t) => t.nome + " (" + (ROT[t.status] || t.status) + ")").join(", "));
+      [["corrigi", "corrigiu"], ["ignorei", "deixou passar"], ["proximoFoco", "próximo foco"], ["leituraDaAula", "leitura da aula"]].forEach(([k, rot]) => { if ((r[k] || "").trim()) partes.push(rot + ": " + r[k].trim().slice(0, 200)); });
+      if (r.conquista && (r.conquista.texto || "").trim()) partes.push("conquista" + (r.conquista.marco ? " (marco)" : "") + ": " + r.conquista.texto.trim().slice(0, 160));
+      return "· " + partes.join(" · ");
+    })].join("\n");
+}
 function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
   const nBlocos = 3;
   const porBloco = Math.ceil(semanas / nBlocos);
@@ -5783,6 +5923,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
     ...(resumoScout ? ["", resumoScout] : []),
     ...(prioridadesObservadasParaPrompt(a) ? ["", prioridadesObservadasParaPrompt(a)] : []),
     ...(evidenciasParaPrompt(a) ? ["", evidenciasParaPrompt(a)] : []),
+    ...(registrosParaPrompt(a) ? ["", registrosParaPrompt(a)] : []),
     ...(ciclosAnteriores.length ? [
       "",
       "RELATÓRIOS DOS CICLOS ANTERIORES DESTE JOGADOR — o novo plano responde ao que",
@@ -6401,7 +6542,8 @@ function sinteseGolpesFicha(f) {
   return partes.join("\n");
 }
 
-function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando, quadras, aoMudarSujo, aoExporSalvarRascunho, aoSairFicha }) {
+/* soParte (25/11/2026, aba Avaliação): abre só uma etapa da ficha, sem a régua das 5 etapas; Salvar grava e volta (aoSairFicha) */
+function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando, quadras, aoMudarSujo, aoExporSalvarRascunho, aoSairFicha, soParte }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
@@ -6473,7 +6615,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
      Calendário) e Prioridades do plano continuam existindo — só ficam
      escondidos por padrão, atrás destes botões. Nada do que já foi
      preenchido se perde ao recolher. */
-  const [mostrarMaisDados, setMostrarMaisDados] = useState(false);
+  const [mostrarMaisDados, setMostrarMaisDados] = useState(!!soParte);
   const [mostrarMaisRotina, setMostrarMaisRotina] = useState(false);
   const [mostrarAvaliacaoCompleta, setMostrarAvaliacaoCompleta] = useState(false);
   const [mostrarMaisAvaliacao, setMostrarMaisAvaliacao] = useState(false);
@@ -6696,7 +6838,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
         const temAlteracoes = JSON.stringify(f) !== JSON.stringify(aluno);
         return (
           <div className="flex items-center justify-end gap-3 mb-1">
-            <button onClick={() => setEditando(false)}
+            <button onClick={() => (soParte && aoSairFicha ? aoSairFicha() : setEditando(false))}
               style={{ ...prosa, fontSize: 12.5, color: temAlteracoes ? "#B3261E" : C.grafite, fontWeight: temAlteracoes ? 700 : 500,
                 background: "none", border: "none", cursor: "pointer", minHeight: 32 }}>
               {temAlteracoes ? "Descartar alterações" : "Cancelar"}
@@ -6704,7 +6846,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           </div>
         );
       })()}
-      <ProgressoFicha etapa={etapa} aoIrPara={irParaEtapa} refTitulo={refTituloEtapa} />
+      {!soParte && <ProgressoFicha etapa={etapa} aoIrPara={irParaEtapa} refTitulo={refTituloEtapa} />}
 
       {estadoSalvo === "erro" && (
         <Aviso cor="#B3261E">
@@ -7181,6 +7323,12 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
         </>
       )}
 
+      {soParte ? (
+        <div className="flex items-center gap-2 mt-6" style={{ flexWrap: "wrap" }} data-salvar-parte>
+          <Botao variante="saibro" onClick={salvarESair} disabled={estadoSalvo === "salvando"}>{estadoSalvo === "salvando" ? "Salvando…" : "Salvar"}</Botao>
+          <Botao variante="vazio" onClick={() => aoSairFicha && aoSairFicha()} disabled={estadoSalvo === "salvando"}>Voltar para a Avaliação</Botao>
+        </div>
+      ) : (
       <div className="flex items-center gap-2 mt-6" style={{ flexWrap: "wrap" }}>
         {etapa > 1 && <Botao variante="vazio" onClick={voltar} disabled={estadoSalvo === "salvando"}>Voltar</Botao>}
         <Botao variante="vazio" onClick={salvarESair} disabled={estadoSalvo === "salvando"}>
@@ -7196,6 +7344,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           </Botao>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -7749,6 +7898,71 @@ function focoDoPlano(entidade) {
   const a = entidade && entidade.plano ? aulaEmVigor(entidade) : null;
   return a && !a.gate && a.t ? { titulo: a.t, detalhe: a.bloco + " · semana " + a.semana, descricao: a.d || "" } : null;
 }
+/* ── Aba Avaliação (pedido do Richard em 25/11/2026: "o acúmulo de informação... ele vai preenchendo com o tempo") ──
+   Cada parte da ficha que não está na ficha rápida vira um cartão que se preenche quando o professor tiver a informação
+   (abre só aquela etapa da ficha, `soParte`). completudeFicha dá o quanto já foi preenchido e qual o próximo passo. */
+function fracaoDe(l) { return l.length ? l.filter(Boolean).length / l.length : 0; }
+const PARTES_AVALIACAO = [
+  { id: "tecnica", t: "Avaliação técnica por golpe", d: "As fases de cada golpe: o que está ok e o que pede atenção.", etapa: 4,
+    frac: (a) => fracaoDe(GOLPES_ENTRADA.map((g) => FASES_GOLPE.some((fase) => (((a.avaliacaoTecnica || {})[g] || {})[fase.k] || {}).nivel))) },
+  { id: "criterios", t: "Classificação por critérios", d: "Confirma ou corrige o nível da ficha rápida, critério por critério.", etapa: 3,
+    frac: (a) => { const st = statusTrilha(a); return st && st.total ? st.feitos / st.total : 0; } },
+  { id: "perfil", t: "Perfil de jogo", d: "Corpo, temperamento e as quatro camadas (técnico, físico, tático, mental).", etapa: 4,
+    frac: (a) => fracaoDe([a.perfilCorpo, a.perfilTemperamento, ...["tecnico", "fisico", "tatico", "mental"].map((k) => ((a.camadas || {})[k] || "").trim())]) },
+  { id: "rotina", t: "Rotina e objetivo", d: "Dias de quadra, períodos, tempo treinando, musculação, objetivo final e competições.", etapa: 2,
+    frac: (a) => fracaoDe([a.diasQuadra != null, a.periodos != null, a.tempoTreinando, a.musculacao != null, (a.objetivoFinal || "").trim(), (a.competicoes || []).some((c) => c && (c.nome || "").trim())]) },
+  { id: "fisico", t: "Físico", d: "Altura, lateralidade, composição física e histórico de atividades na infância.", etapa: 1,
+    frac: (a) => fracaoDe([a.alturaAtual, a.lateralidade, a.tipoFisico, a.baseMotora]) },
+  { id: "contexto", t: "Contexto", d: "Família e expectativas (criança) ou disposição e comportamento em quadra (adulto).", etapa: 1,
+    frac: (a) => a.estagio === "A" ? fracaoDe([a.disposicaoAdulto, (a.comportamentoAdulto || "").trim()]) : fracaoDe([(a.contexto || "").trim()]) },
+];
+function completudeFicha(a) {
+  const partes = PARTES_AVALIACAO.map((p) => ({ ...p, f: Math.max(0, Math.min(1, p.frac(a || {}) || 0)) }));
+  const pct = Math.round((100 * partes.reduce((s, p) => s + p.f, 0)) / partes.length);
+  /* sugestão de hoje: o primeiro golpe ainda sem avaliação; depois, a primeira parte vazia */
+  const golpe = GOLPES_ENTRADA.find((g) => !FASES_GOLPE.some((fase) => ((((a || {}).avaliacaoTecnica || {})[g] || {})[fase.k] || {}).nivel));
+  const vazia = partes.find((p) => p.f === 0);
+  const sugestao = golpe ? "Hoje, observe: " + golpe + ". Marque as fases na aba Avaliação." : vazia ? "Complete " + vazia.t.toLowerCase() + " na aba Avaliação." : "";
+  return { pct, partes, sugestao };
+}
+function AbaAvaliacao({ aluno, salvar, papelAtual, uidAtual, quadras }) {
+  const [parte, setParte] = useState(null);
+  const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
+  const c = completudeFicha(aluno);
+  if (parte) {
+    return (
+      <div data-avaliacao-parte={parte.id}>
+        <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 2 }}>{parte.t}</p>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{parte.d}</p>
+        <TelaFicha key={aluno.id + parte.id} aluno={aluno} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual} quadras={quadras}
+          etapaAlvo={parte.etapa} soParte aoSairFicha={() => setParte(null)} />
+      </div>
+    );
+  }
+  return (
+    <div data-aba-avaliacao>
+      <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px", marginBottom: 12 }}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }} data-completude>Ficha {c.pct}% completa</p>
+        <div style={{ height: 8, borderRadius: 99, background: C.linha, overflow: "hidden", margin: "8px 0" }}><div style={{ width: c.pct + "%", height: "100%", background: C.saibro }} /></div>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Preencha cada parte quando tiver a informação, aula a aula. Tudo aqui entra no próximo planejamento.{c.sugestao ? " Sugestão: " + c.sugestao : ""}</p>
+      </div>
+      {c.partes.map((p) => {
+        const st = p.f >= 1 ? "Completo" : p.f > 0 ? "Em andamento" : "Falta";
+        return (
+          <div key={p.id} data-parte-avaliacao={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (p.f >= 1 ? C.quadra : p.f > 0 ? C.saibro : C.linha), borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{p.t} <span style={{ ...prosa, fontSize: 12, color: C.grafite, fontWeight: 400 }}>· {st}{p.f > 0 && p.f < 1 ? " (" + Math.round(p.f * 100) + "%)" : ""}</span></p>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{p.d}</p>
+              </div>
+              {podeEditar && <Botao pequeno variante={p.f >= 1 ? "vazio" : "saibro"} onClick={() => setParte(p)}>{p.f > 0 ? "Editar" : "Preencher"}</Botao>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 function LinhaPreparacao({ aluno, foco, comNome }) {
   const A = window.MTYAtendimento;
   const p = A.preparacao(aluno, { foco });
@@ -7756,6 +7970,8 @@ function LinhaPreparacao({ aluno, foco, comNome }) {
   return (
     <div data-prep-aluno={aluno.id} style={{ borderTop: comNome ? "1px solid " + C.linha : "none", paddingTop: comNome ? 10 : 0, marginTop: comNome ? 10 : 0 }}>
       {comNome && <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{aluno.nome || "Sem nome"}</p>}
+      {(() => { const c = completudeFicha(aluno); return c.pct < 100 && c.sugestao ? (
+        <p data-prep-avaliacao style={{ ...prosa, fontSize: 12.5, color: C.quadra, fontWeight: 600, marginBottom: 6 }}>Ficha {c.pct}% completa · {c.sugestao}</p>) : null; })()}
       <p style={rot}>Foco do plano</p>
       <p style={{ ...prosa, fontSize: 13.5, marginBottom: 6 }}>
         {p.foco ? <>{p.foco.titulo}{p.foco.detalhe ? <span style={{ color: C.grafite }}> · {p.foco.detalhe}</span> : p.foco.origem === "proximoFoco" ? <span style={{ color: C.grafite }}> · próximo foco anotado em {A.dataCurta(p.foco.data)}</span> : null}</>
@@ -14751,7 +14967,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           {fichaIncompletaDe.length > 0 && (
             <Aviso>
               Falta preencher a camada técnica da ficha de {fichaIncompletaDe.map((m) => m.nome || "sem nome").join(", ")}
-              {" "}— o plano vai sair genérico até isso ser preenchido.
+              {" "}— o plano vai sair genérico até isso ser preenchido.{!eTurma && aluno && aluno.fichaRapida ? " Na ficha rápida isso é normal: complete aos poucos na aba Avaliação." : ""}
               {!eTurma && aoAcessarFicha && (
                 <>
                   {" "}
@@ -14764,6 +14980,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             </Aviso>
           )}
           {erro && <Aviso>{erro}</Aviso>}
+          {/* resumo do ciclo, contado sem IA: o que vai pesar no próximo plano */}
+          {!eTurma && (() => { const r = resumoDoCiclo(aluno); return r.aulas || r.jogos || r.prioridadesAbertas ? (
+            <div data-resumo-ciclo className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, borderRadius: 10, padding: "11px 13px" }}>
+              <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>O que entra no próximo plano</p>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "2px 0 6px" }}>Desde {r.desde.split("-").reverse().join("/")}, junto com a ficha, a aba Avaliação, o scout e os relatórios dos ciclos anteriores.</p>
+              <p style={{ ...prosa, fontSize: 13 }}>{r.aulas} aulas registradas · {r.faltas} faltas · temas: {r.temas.atingiu} atingidos, {r.temas.parcial} parciais, {r.temas.nao_atingiu} não atingidos · {r.conquistas} conquistas ({r.marcos} marcos) · {r.jogos} jogos com scout · {r.prioridadesAbertas} prioridades observadas em aberto</p>
+            </div>) : null; })()}
           <div className="flex gap-2 flex-wrap items-center">
             <Botao onClick={gerarComIA} variante="saibro"
               disabled={gerando || !podeGerarPlano || (entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando")}>
@@ -17980,6 +18203,104 @@ function TurmasApagadas({ turmas, setTurmas, alunos, ocorrencias, aoFechar }) {
   );
 }
 
+/* ── Montar turmas (pedido do Richard em 25/11/2026: "monta as turmas, gera planos individuais para cada um, e aí vai agrupando
+   nas turmas também") ──
+   Sugere grupos com quem ainda não está em turma (da ficha rápida, "A definir"; opcionalmente também quem faz aula individual):
+   mesmo estágio, nível parecido e idade próxima, até o tamanho máximo escolhido. O professor ajusta e cria cada turma; a turma
+   pode nascer com o plano de turma gerado por IA (o professor revisa e aprova, como sempre). */
+function sugerirGrupos(candidatos, max) {
+  const n = Math.max(2, Math.min(8, Number(max) || 4)), grupos = [];
+  const porEstagio = {};
+  candidatos.forEach((a) => { (porEstagio[a.estagio] = porEstagio[a.estagio] || []).push(a); });
+  ESTAGIOS.forEach(({ s: est }) => {
+    const l = (porEstagio[est] || []).slice().sort((x, y) => NIVEIS.indexOf(x.nivel) - NIVEIS.indexOf(y.nivel) || String(y.nascimento || "").localeCompare(String(x.nascimento || "")));
+    if (l.length < 2) return; /* sozinho no estágio: fica em "Fora dos grupos", para o professor decidir */
+    const qtd = Math.ceil(l.length / n);
+    for (let g = 0; g < qtd; g++) {
+      /* grupos equilibrados (7 com máximo 4 vira 4 + 3, não 4 + 3 + 0) */
+      const tam = Math.ceil(l.length / (qtd - g)), membros = l.splice(0, tam);
+      const niveis = [...new Set(membros.map((a) => a.nivel).filter(Boolean))];
+      grupos.push({ id: "g" + est + g, nome: ESTAGIO_NOME[est] + (niveis.length ? " · " + niveis.join("/") : "") + (qtd > 1 ? " · " + (g + 1) : ""), estagio: est, membros: membros.map((a) => a.id) });
+    }
+  });
+  return grupos;
+}
+function MontarTurmas({ alunos, turmas, setTurmas, setAlunos, professores, aoFechar }) {
+  const [max, setMax] = useState(4), [comIndividuais, setComIndividuais] = useState(false), [gerarIA, setGerarIA] = useState(true);
+  const emTurma = new Set(turmas.flatMap((t) => t.membros || []));
+  const candidatos = alunos.filter((a) => !a.soCadastro && a.estagio && !emTurma.has(a.id) && (a.ondeTreina === "definir" || (comIndividuais && a.ondeTreina !== "turma")));
+  const chave = candidatos.map((a) => a.id).join(",") + "|" + max;
+  const [grupos, setGrupos] = useState(() => sugerirGrupos(candidatos, max));
+  useEffect(() => { setGrupos(sugerirGrupos(candidatos, max)); }, [chave]);
+  const [aviso, setAviso] = useState("");
+  const nomeDe = (id) => ((alunos.find((a) => a.id === id) || {}).nome || "Sem nome");
+  const soltos = candidatos.filter((a) => !grupos.some((g) => g.membros.includes(a.id)));
+  const mudar = (gid, fn) => setGrupos((l) => l.map((g) => (g.id === gid ? fn(g) : g)));
+  async function criar(g) {
+    if (g.membros.length < 2) { setAviso("Uma turma precisa de pelo menos 2 alunos."); return; }
+    const membros = g.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
+    const contagem = {}; membros.forEach((m) => { if (m.professorUid) contagem[m.professorUid] = (contagem[m.professorUid] || 0) + 1; });
+    const profUid = Object.keys(contagem).sort((a, b) => contagem[b] - contagem[a])[0] || "", prof = professores.find((p) => p.uid === profUid);
+    const turma = { id: "turma-" + Date.now(), nome: g.nome.trim() || "Turma", membros: g.membros, duracaoPadrao: "1h30", professorUid: profUid, professorNome: prof ? prof.nome : "",
+      professorAuxiliarUid: "", professorAuxiliarNome: "", horarios: [], criadaPorSugestao: true };
+    setTurmas((l) => [...l, turma]);
+    setAlunos((l) => l.map((a) => (g.membros.includes(a.id) ? { ...a, ondeTreina: "turma" } : a)));
+    setGrupos((l) => l.filter((x) => x.id !== g.id));
+    setAviso("Turma " + turma.nome + " criada com " + g.membros.length + " alunos." + (gerarIA ? " Gerando o plano da turma com IA…" : ""));
+    if (gerarIA) {
+      try {
+        const prompt = promptPlanoTurma(turma, membros, 4, 2, [], { tecnico: 50, tatico: 50, fisico: 50, pontos: 50 });
+        const { jobId } = await iniciarJobIA(prompt, 32000);
+        setTurmas((l) => l.map((t) => (t.id === turma.id ? { ...t, geracaoPlano: { status: "gerando", jobId, iniciadoEm: new Date().toISOString(), estagiosAlvo: membros.map((m) => m.estagio), golpesProblema: [] } } : t)));
+        setAviso("Turma " + turma.nome + " criada. O plano da turma está sendo gerado: aparece em Turmas › " + turma.nome + " › Plano para você revisar.");
+      } catch (e) { setAviso("Turma " + turma.nome + " criada, mas o plano com IA não começou: " + String(e.message || e)); }
+    }
+  }
+  const chipNome = { fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "5px 10px", borderRadius: 999, border: "1px solid " + C.linha, background: C.papel, display: "inline-flex", alignItems: "center", gap: 6 };
+  return (
+    <div data-montar-turmas style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 15, marginBottom: 18 }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Montar turmas</p>
+        <Botao pequeno variante="vazio" onClick={aoFechar}>Fechar</Botao>
+      </div>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 10px" }}>Sugestão com quem ainda não está em turma: mesmo estágio, nível parecido e idade próxima. Ajuste e crie cada turma.</p>
+      <div className="flex flex-wrap gap-3 items-center mb-3">
+        <label style={{ ...prosa, fontSize: 13 }}>Até <select value={max} onChange={(e) => setMax(Number(e.target.value))} style={{ ...entrada, width: 64, display: "inline-block", padding: "4px 6px" }}>{[2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n}</option>)}</select> alunos por turma</label>
+        <label style={{ ...prosa, fontSize: 13 }}><input type="checkbox" checked={comIndividuais} onChange={(e) => setComIndividuais(e.target.checked)} /> incluir quem faz aula individual</label>
+        <label style={{ ...prosa, fontSize: 13 }}><input type="checkbox" checked={gerarIA} onChange={(e) => setGerarIA(e.target.checked)} /> gerar o plano da turma com IA</label>
+      </div>
+      {aviso && <div className="mb-3"><Aviso cor={C.quadra}>{aviso}</Aviso></div>}
+      {candidatos.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Ninguém esperando turma. Na ficha rápida, quem treina em turma ainda não montada entra como "A definir".</p>}
+      {grupos.map((g) => (
+        <div key={g.id} data-grupo-sugerido={g.id} style={{ border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+          <input style={{ ...entrada, fontWeight: 700, marginBottom: 8 }} value={g.nome} onChange={(e) => mudar(g.id, (x) => ({ ...x, nome: e.target.value }))} aria-label="Nome da turma" />
+          <div className="flex flex-wrap gap-2 mb-2">
+            {g.membros.map((id) => {
+              const a = alunos.find((x) => x.id === id) || {};
+              return <span key={id} style={chipNome}>{nomeDe(id)} <span style={{ color: C.grafite, fontWeight: 400 }}>{a.nivel || ""}</span>
+                <button type="button" aria-label={"Tirar " + nomeDe(id) + " deste grupo"} onClick={() => mudar(g.id, (x) => ({ ...x, membros: x.membros.filter((m) => m !== id) }))} style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite }}>×</button></span>;
+            })}
+          </div>
+          <Botao pequeno variante="saibro" onClick={() => criar(g)}>Criar esta turma</Botao>
+        </div>
+      ))}
+      {soltos.length > 0 && (
+        <div data-soltos style={{ marginTop: 6 }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>Fora dos grupos{grupos.length ? ": escolha onde colocar." : " (sozinhos no estágio): junte a uma turma que já existe em Nova turma, ou espere mais alunos."}</p>
+          {soltos.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 flex-wrap mb-2">
+              <span style={chipNome}>{a.nome || "Sem nome"} <span style={{ color: C.grafite, fontWeight: 400 }}>{ESTAGIO_NOME[a.estagio] || ""} {a.nivel || ""}</span></span>
+              {grupos.length > 0 && <select defaultValue="" onChange={(e) => { const gid = e.target.value; if (gid) mudar(gid, (x) => ({ ...x, membros: [...x.membros, a.id] })); }} style={{ ...entrada, width: "auto", padding: "4px 6px" }} aria-label={"Grupo para " + (a.nome || "o aluno")}>
+                <option value="">pôr no grupo…</option>
+                {grupos.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+              </select>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras, ocorrencias, turmaAbertaAlvo, aoConsumirTurmaAlvo }) {
   const [abertaId, setAbertaId] = useState(null);
   /* Mesmo padrão de dataAlvo na Agenda: quando alguém pede pra abrir a
@@ -17992,6 +18313,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
     }
   }, [turmaAbertaAlvo, turmas]);
   const [criando, setCriando] = useState(false);
+  const [montando, setMontando] = useState(false);
   const [verApagadas, setVerApagadas] = useState(false);
   const [nome, setNome] = useState("");
   const [membrosSel, setMembrosSel] = useState([]);
@@ -18034,12 +18356,13 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
         <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Turmas</h1>
-        {!criando && <div className="flex gap-2 flex-wrap"><Botao pequeno variante="vazio" onClick={() => setVerApagadas(!verApagadas)}>Turmas apagadas</Botao><Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao></div>}
+        {!criando && <div className="flex gap-2 flex-wrap"><Botao pequeno variante="vazio" onClick={() => setVerApagadas(!verApagadas)}>Turmas apagadas</Botao><Botao pequeno variante="vazio" onClick={() => setMontando(!montando)}>Montar turmas</Botao><Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao></div>}
       </div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
         Organize as aulas em grupo mantendo o planejamento e o acompanhamento de cada jogador.
       </p>
       {verApagadas && <TurmasApagadas turmas={turmas} setTurmas={setTurmas} alunos={alunos} ocorrencias={ocorrencias} aoFechar={() => setVerApagadas(false)} />}
+      {montando && <MontarTurmas alunos={alunos} turmas={turmas} setTurmas={setTurmas} setAlunos={setAlunos} professores={professores} aoFechar={() => setMontando(false)} />}
 
       {criando && (
         <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
@@ -25291,7 +25614,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-sessao-quatro-partes";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-ficha-rapida";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -25300,7 +25623,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
+  { novo: true, t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
+  { t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
   { t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
   { t: "Meu plano com o professor e as próximas aulas", d: "Quando o aluno abre o Meu plano (pela Área do aluno com o e-mail ou pelo link), aparecem o professor dele (e o de cada turma) e as próximas aulas dos 14 dias seguintes: individual, turma, reposição, aula experimental e alto rendimento, com dia, horário, quadra, professor e substituto. Aula cancelada aparece riscada com o motivo. Tudo sai da Agenda e dos horários fixos, sem nada novo para preencher.", onde: "Meu plano do aluno", aba: "alunos" },
   { t: "Agenda do professor sem dados da gestão", d: "Na Agenda do app dos professores, a locação de quadra aparece só como Quadra reservada, sem o nome e o telefone de quem alugou e sem cancelar a reserva; o + Agendar oferece aula individual, aula de turma e reposição (locação e bloqueio de quadra ficam com a gestão), e o menu com o link de reservas, a página pública, as quadras e os horários recorrentes saiu. A coordenação e a gestão continuam vendo tudo no painel teamyoda.com.br/gestao.", onde: "Agenda", aba: "agenda" },
@@ -27395,6 +27719,22 @@ function TelaPadraoAtendimento({ alunos, turmas, ocorrencias, irParaAluno, irPar
         <CartaoP largura="mini" data-kpi="faltas"><NumeroP rotulo={"Alunos com " + L.faltas + " faltas ou mais"} valor={T.faltas} nota={"em " + L.diasFaltas + " dias"} cor={T.faltas ? COR_ALERTA : undefined} /></CartaoP>
         <CartaoP largura="mini" data-kpi="sem-marco"><NumeroP rotulo="Alunos sem marco" valor={T.semMarco} nota={"há " + L.diasSemMarco + " dias ou mais"} cor={T.semMarco ? COR_ALERTA : undefined} /></CartaoP>
 
+        {/* 25/11/2026: fichas rápidas que ficaram pela metade (menos de 50%) mais de 30 dias depois do cadastro */}
+        {(() => {
+          const limite = Date.now() - 30 * 86400000;
+          const lista = (alunos || []).filter((a) => a.fichaRapida && a.criadoEm && Date.parse(a.criadoEm) < limite)
+            .map((a) => ({ a, pct: completudeFicha(a).pct })).filter((x) => x.pct < 50).sort((x, y) => x.pct - y.pct);
+          return lista.length ? (
+            <CartaoP largura="cheio" titulo={"Fichas pela metade há mais de 30 dias · " + lista.length} data-secao="fichas-incompletas">
+              {lista.slice(0, 20).map(({ a, pct }) => (
+                <div key={a.id} style={itemLista} className="flex items-center justify-between gap-3 flex-wrap">
+                  <button type="button" onClick={() => irParaAluno && irParaAluno(a.id)} style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", color: C.tinta, textAlign: "left" }}>{a.nome || "Sem nome"}</button>
+                  <span style={{ ...prosa, fontSize: 13, color: C.grafite }}>{pct}% · {a.professorNome || "sem professor"}</span>
+                </div>
+              ))}
+            </CartaoP>
+          ) : null;
+        })()}
         <CartaoP largura="cheio" titulo="Checklist por professor" data-secao="professores">
           {linhas.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum professor com aula no período.</p>}
           {linhas.map((p) => (
@@ -28656,6 +28996,26 @@ function App() {
   const rotuloDaAba = (v) => { const p = NAV_PRINCIPAL_TY.find((x) => x.v === v); if (p) return p.r; const r = { "aulas-hoje": "Aulas de hoje", pendencias: "Pendências", reposicoes: "Reposições" }[v]; if (r) return r;
     for (const g of gruposNav) { const t = g.itens.find((x) => x.v === v); if (t) return t.r; } return ""; };
   const topoAgenda = <SecoesPagina rotulo="Seções da Agenda" atual={aba} aoTrocar={(v) => setAba(v)} itens={[{ v: "agenda", r: "Calendário" }, { v: "reposicoes", r: "Reposições" }, { v: "relatorio", r: "Relatório de aulas" }]} />;
+  /* ficha rápida (25/11/2026): cria o aluno, põe na turma escolhida e dispara o plano por IA */
+  const [fichaRapidaAberta, setFichaRapidaAberta] = useState(false);
+  const [avisoFichaRapida, setAvisoFichaRapida] = useState("");
+  async function criarFichaRapida(n, { turmaId, gerarIA }) {
+    if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) { setLimiteAtingido(true); setFichaRapidaAberta(false); return; }
+    setAlunos((l) => [...l, n]);
+    if (turmaId) setTurmas((l) => l.map((t) => (t.id === turmaId ? { ...t, membros: [...new Set([...(t.membros || []), n.id])] } : t)));
+    setFichaRapidaAberta(false);
+    setAbertoId(n.id);
+    setSubaba("plano");
+    if (gerarIA) {
+      try {
+        const g = await dispararPlanoIAAluno(n);
+        setAlunos((l) => l.map((a) => (a.id === n.id ? { ...a, geracaoPlano: g } : a)));
+        setAvisoFichaRapida("");
+      } catch (e) {
+        setAvisoFichaRapida("O plano com IA não começou: " + String(e.message || e) + " Gere pelo botão do Plano quando puder.");
+      }
+    }
+  }
   function criarRapido(n) {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) { setLimiteAtingido(true); setRapidoAberto(false); return; }
     setAlunos([...alunos, n]);
@@ -29179,6 +29539,7 @@ function App() {
               </div>
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Novo jogador"}</h1>
+            {avisoFichaRapida && <div style={{ marginTop: 6 }}><Aviso>{avisoFichaRapida}</Aviso></div>}
             {!cadastroCompleto && (
               <p style={{ ...prosa, color: C.grafite, marginTop: 4, marginBottom: 2 }}>Preencha os dados para começar o acompanhamento.</p>
             )}
@@ -29208,7 +29569,7 @@ function App() {
                  "Fechamento" virou "Evolução" porque reúne resultados,
                  critérios e pendências do ciclo — não é só o passo final
                  de encerrar, é onde se acompanha como o jogador está indo. */
-              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "relatorio", r: "Relatório" }, { v: "canal", r: "Canal" }];
+              const principais = [{ v: "ficha", r: "Perfil" }, { v: "avaliacao", r: "Avaliação" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "relatorio", r: "Relatório" }, { v: "canal", r: "Canal" }];
               const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "alto", r: "Alto rendimento" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
@@ -29302,6 +29663,7 @@ function App() {
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} quadras={quadras}
                 aoMudarSujo={setFichaSuja} aoExporSalvarRascunho={(fn) => { salvarRascunhoRef.current = fn; }}
                 aoSairFicha={() => setAbertoId(null)} /> :
+             subaba === "avaliacao" ? <AbaAvaliacao aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual} quadras={quadras} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias}
                aoAbrirFicha={(id) => { setRegistroAbertoAlvo(id); setSubaba("registro"); }} /> :
@@ -29441,9 +29803,11 @@ function App() {
               </div>
             )}
             <div className="mt-4 flex gap-2 flex-wrap">
-              <Botao onClick={criar} variante="saibro">Novo jogador</Botao>
-              {!rapidoAberto && <Botao onClick={() => setRapidoAberto(true)} variante="vazio">Cadastro rápido (sem aula nem plano)</Botao>}
+              <Botao onClick={() => { setRapidoAberto(false); setFichaRapidaAberta(true); }} variante="saibro">Novo jogador</Botao>
+              {!rapidoAberto && <Botao onClick={() => { setFichaRapidaAberta(false); setRapidoAberto(true); }} variante="vazio">Cadastro rápido (sem aula nem plano)</Botao>}
             </div>
+            {fichaRapidaAberta && <FichaRapida uidAtual={uidAtual} turmas={turmas} aoCriar={criarFichaRapida} aoCancelar={() => setFichaRapidaAberta(false)}
+              aoFichaCompleta={() => { setFichaRapidaAberta(false); criar(); }} />}
             {rapidoAberto && <CadastroRapido uidAtual={uidAtual} aoCriar={criarRapido} aoCancelar={() => setRapidoAberto(false)} />}
           </div>
         )}
