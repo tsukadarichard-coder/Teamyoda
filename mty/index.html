@@ -52,6 +52,7 @@
 <script src="equipe-rendimento.js"></script>
 <script src="aulas-mes.js"></script>
 <script src="situacoes-jogo.js"></script>
+<script src="tecnica-especifica.js"></script>
 <script src="alto-rendimento.js"></script>
 <script src="atendimento.js"></script>
 <script src="relatorio-atleta.js"></script>
@@ -379,6 +380,9 @@ const EXERCICIOS = [{"c":"ADV001","n":"Construção em 4 Bolas MTY","f":"ADV","e
 /* Situações de jogo (situacoes-jogo.js): exercícios novos das famílias DT, IP, PDB, AT, PDR e DP, com o que ler
    (tl) e o indicador (ti). Entram no fim, continuando a numeração de cada família. */
 if (window.MTYSituacoes) EXERCICIOS.push(...window.MTYSituacoes.exercicios());
+/* Técnica específica (tecnica-especifica.js, 25/11/2026): a família TE (um golpe isolado, para todos os golpes) e dois
+   aquecimentos novos dentro da quadra (AQ001, AQ002). */
+if (window.MTYTecnica) EXERCICIOS.push(...window.MTYTecnica.exercicios());
 
 /* Exercícios que o treinador cadastra na própria academia, com os
    mesmos campos do catálogo do manual — persistidos por org (ver
@@ -410,7 +414,7 @@ function TODOS_EXERCICIOS() {
    pra aparecer sorteado numa sessão normal em quadra. O catálogo continua
    listando todos (TODOS_EXERCICIOS), inclusive pra consulta no Manual —
    só o sorteio automático usa este filtro. */
-function exerciciosParaSorteio() { return TODOS_EXERCICIOS().filter((e) => !e.semBola); }
+function exerciciosParaSorteio() { return TODOS_EXERCICIOS().filter((e) => !e.semBola && !/^AQ\d/.test(e.c)); }
 /* Aquecimento é sem bola por definição — o corpo entra em movimento antes
    de qualquer troca. O catálogo só tem 18 exercícios marcados
    semBola:true (ver linha ~296), então aqui NÃO filtra por família de
@@ -422,7 +426,15 @@ function exerciciosSemBola() { return TODOS_EXERCICIOS().filter((e) => e.semBola
    com bola alimentada pelo treinador — além do que já era semBola. As
    outras famílias (CO/CF com elástico, medicine ball etc.) continuam de
    fora: só MV se soma ao que já entrava. */
-function exerciciosAquecimento() {
+/* 25/11/2026 (pedido do Richard): o aquecimento passa a ser uma lista fechada, só com o que se faz dentro da quadra e separada
+   por idade (tecnica-especifica.js: crianças = V/L/G; adultos e competição = A/C). estagios: os do aluno ou dos presentes da
+   turma; a faixa mais nova manda. Sem o arquivo, vale a regra antiga. */
+function exerciciosAquecimento(estagios) {
+  if (window.MTYTecnica) {
+    const l = [].concat(estagios || []).filter(Boolean), AQ = window.MTYTecnica.AQUECIMENTO;
+    const ok = new Set(l.length ? window.MTYTecnica.aquecimentoPermitido(l) : [...AQ.crianca, ...AQ.adulto]);
+    return TODOS_EXERCICIOS().filter((e) => ok.has(e.c));
+  }
   const semBola = exerciciosSemBola();
   const vistos = new Set(semBola.map((e) => e.c));
   const mv = TODOS_EXERCICIOS().filter((e) => e.f === "MV" && !vistos.has(e.c));
@@ -506,7 +518,7 @@ const SOMBRA_ALTA = "0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08)
 const FAM = {
   IP: "Início do ponto", RT: "Redução de tempo", CO: "Coordenação e base motora",
   AT: "Ataque e finalização", JA: "Jogo aplicado com regra", FB: "Fundamentos básicos",
-  MV: "Movimentação", DT: "Drills táticos", PDB: "Power drills · base",
+  MV: "Movimentação", DT: "Drills táticos", TE: "Técnica específica", PDB: "Power drills · base",
   PDR: "Power drills · rede", PDS: "Power drills · saque", DC: "Drills de consistência",
   CF: "Condicionamento físico", DM: "Drills mentais", ADV: "Drills avançados MTY", PT: "Padrões táticos",
 };
@@ -522,7 +534,7 @@ const CONCEITO_POR_FAMILIA = {
   IP: "Saque e devolução", PDS: "Saque e devolução",
   RT: "Construção de ponto", DT: "Construção de ponto", PT: "Construção de ponto", DC: "Construção de ponto",
   AT: "Rede e finalização", PDR: "Rede e finalização",
-  CO: "Movimentação e base", MV: "Movimentação e base", FB: "Movimentação e base", PDB: "Movimentação e base",
+  CO: "Movimentação e base", MV: "Movimentação e base", FB: "Movimentação e base", PDB: "Movimentação e base", TE: "Movimentação e base",
   JA: "Tático e jogo", ADV: "Tático e jogo",
   CF: "Físico e mental", DM: "Físico e mental",
 };
@@ -6741,6 +6753,22 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             </Campo>
           </div>
 
+          {/* 25/11/2026: o golpe que a parte de técnica específica da sessão trabalha (até 2, alternando) */}
+          {window.MTYTecnica && (
+            <Campo rotulo="Golpe da parte técnica" nota={"Até 2 golpes. A sessão alterna entre eles na parte de técnica específica (um golpe isolado, sem construção de jogada). Sem marcar, a sessão roda pelos golpes" + (["V", "L", "G"].includes(f.estagio) ? " de base." : ".")}>
+              <div className="flex flex-wrap gap-2" data-golpes-ficha>
+                {window.MTYTecnica.GOLPES.filter((g) => !g.bh || g.bh === (String(f.backhand) === "uma" || String(f.backhand) === "1" ? "1" : "2")).map((g) => {
+                  const lista = f.golpesTecnicos || [], on = lista.includes(g.id), cheio = !on && lista.length >= 2;
+                  return (
+                    <button key={g.id} type="button" disabled={cheio} aria-pressed={on} data-golpe={g.id}
+                      onClick={() => set("golpesTecnicos", on ? lista.filter((x) => x !== g.id) : [...lista, g.id])}
+                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "7px 12px", borderRadius: 999, cursor: cheio ? "default" : "pointer", opacity: cheio ? 0.45 : 1,
+                        border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta }}>{g.r}</button>
+                  );
+                })}
+              </div>
+            </Campo>
+          )}
           <button type="button" onClick={() => setMostrarMaisDados(!mostrarMaisDados)} aria-expanded={mostrarMaisDados}
             className="w-full flex items-center justify-between mb-5"
             style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta, background: C.cal,
@@ -7590,11 +7618,13 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
 
 /* ─────────────────────────── sessão do dia ─────────────────────────── */
 const BLOCOS = [
-  { id: 1, nome: "Base motora e entrada", familias: ["CO", "CF", "MV"], porque: "Entrada em movimento. Também é o destino da regressão à raiz." },
-  { id: 2, nome: "Fundamento do ciclo", familias: ["FB", "DC"], porque: "O fundamento da semana, distribuído — nunca insistido numa sessão só." },
-  { id: 3, nome: "Início do ponto", familias: ["IP", "PDS"], porque: "Saque e devolução nunca separados do que vem depois." },
-  { id: 4, nome: "Tema do ciclo", familias: null, porque: "O estímulo ativo do ciclo nesta semana." },
-  { id: 5, nome: "Jogo aplicado", familias: ["JA", "ADV", "DM"], porque: "A regra existe para forçar o tema, não para premiar a bola dentro." },
+  /* ordem da sessão (25/11/2026): aquecimento, técnica específica, parte geral (tema e jogo aplicado), saque e devolução.
+     Os ids ficam (1 aquecimento, 2 técnica, 3 saque e devolução, 4 tema, 5 jogo); a ordem da lista é a da quadra. */
+  { id: 1, nome: "Aquecimento", familias: ["CO", "CF", "MV"], porque: "Entrada em movimento, dentro da quadra e próprio para a idade." },
+  { id: 2, nome: "Técnica específica", familias: ["TE"], porque: "Um golpe só, isolado, sem construção de jogada: o golpe marcado na ficha." },
+  { id: 4, nome: "Parte geral · tema do ciclo", familias: null, porque: "O estímulo ativo do ciclo nesta semana." },
+  { id: 5, nome: "Parte geral · jogo aplicado", familias: ["JA", "ADV", "DM"], porque: "A regra existe para forçar o tema, não para premiar a bola dentro." },
+  { id: 3, nome: "Saque e devolução", familias: ["IP", "PDS"], porque: "Em toda sessão; saque e devolução nunca separados do que vem depois." },
 ];
 
 function fatiaInicio(nivel) {
@@ -7624,6 +7654,65 @@ function garanteSaqueEDevolucao(pool, evitar) {
   const poolDevolucao = deDevolucao.length ? deDevolucao : pool.filter((e) => !usados.has(e.c));
   const umaDevolucao = sorteia(poolDevolucao, evitar, 1);
   return [...umSaque, ...umaDevolucao];
+}
+
+/* ── Estrutura da sessão (pedido do Richard em 25/11/2026) ──
+   Toda sessão de aula tem quatro partes, nesta ordem: Aquecimento (lista fechada, dentro da quadra, pela idade), Técnica
+   específica (família TE: um golpe isolado, o golpe que o professor marcou na ficha), Parte geral (o que a aula do
+   planejamento definiu, com a tática) e Saque e devolução (sempre). O planejamento não muda: a sessão só separa o que a aula
+   trouxe nas quatro partes e completa o que faltar. Sessões antigas (só aquecimento e conteúdo) continuam abrindo. */
+const SECOES_SESSAO = [
+  { id: "aquecimento", t: "Aquecimento", sub: "Dentro da quadra e próprio para a idade." },
+  { id: "especifico", t: "Técnica específica", sub: "Um golpe só, isolado, sem construção de jogada." },
+  { id: "conteudo", t: "Parte geral", sub: "O que a aula do planejamento definiu, com a tática." },
+  { id: "saqueDev", t: "Saque e devolução", sub: "Em toda sessão." },
+];
+function exerciciosDaSessao(p) { return p ? SECOES_SESSAO.flatMap((s) => p[s.id] || []) : []; }
+function ehSaqueEx(e) { return AREAS.saque.busca.test(e.n + " " + e.m); }
+function ehDevolucaoEx(e) { return AREAS.devolucao.busca.test(e.n + " " + e.m); }
+/* o que se sorteia para trocar um exercício de cada parte (sem os de técnica específica e de aquecimento na parte geral) */
+function poolDaSecao(secao, saiu, estagios) {
+  const est = [].concat(estagios || []).filter(Boolean), temEst = (e) => !est.length || e.e.some((s) => est.includes(s));
+  if (secao === "aquecimento") return exerciciosAquecimento(est).filter(temEst);
+  if (secao === "especifico") {
+    const te = TODOS_EXERCICIOS().filter((e) => e.f === "TE" && temEst(e));
+    const mesmo = saiu && saiu.golpe ? te.filter((e) => e.golpe === saiu.golpe) : [];
+    return mesmo.length > 1 ? mesmo : te;
+  }
+  if (secao === "saqueDev") {
+    const ok = saiu && ehDevolucaoEx(saiu) && !ehSaqueEx(saiu) ? ehDevolucaoEx : ehSaqueEx;
+    return exerciciosParaSorteio().filter((e) => ok(e) && temEst(e) && e.f !== "TE");
+  }
+  const aq = new Set(exerciciosAquecimento().map((e) => e.c));
+  return exerciciosParaSorteio().filter((e) => temEst(e) && e.f !== "TE" && !aq.has(e.c));
+}
+/* Monta as quatro partes a partir dos códigos da aula do plano.
+   tecnica = [{ exercicio, golpe, rotulo, alunos }] (individual: um; turma e CT: um por golpe, com quem trabalha cada um) */
+function montarPartesSessao({ codigos, estagios, evitar, tecnica }) {
+  const est = [].concat(estagios || []).filter(Boolean), temEst = (e) => !est.length || e.e.some((s) => est.includes(s));
+  const aquecimento = sorteia(exerciciosAquecimento(est).filter(temEst), evitar || new Set(), 2);
+  const aq = new Set(exerciciosAquecimento().map((e) => e.c));
+  /* !e.semBola: códigos sem bola presos numa aula antiga não entram; o aquecimento que o plano trouxe é refeito acima */
+  let doPlano = (codigos || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola && !aq.has(e.c));
+  const vistos = new Set();
+  const especifico = [...doPlano.filter((e) => e.f === "TE"),
+    ...(tecnica || []).map((t) => ({ ...t.exercicio, golpeRotulo: t.rotulo, paraAlunos: t.alunos || [] }))].filter((e) => !vistos.has(e.c) && vistos.add(e.c));
+  doPlano = doPlano.filter((e) => e.f !== "TE");
+  const saqueDev = doPlano.filter((e) => ehSaqueEx(e) || ehDevolucaoEx(e));
+  const conteudo = doPlano.filter((e) => !(ehSaqueEx(e) || ehDevolucaoEx(e)));
+  const usados = new Set([...aquecimento, ...especifico, ...conteudo, ...saqueDev].map((e) => e.c));
+  const base = exerciciosParaSorteio().filter((e) => temEst(e) && e.f !== "TE" && !usados.has(e.c));
+  if (!saqueDev.some(ehSaqueEx)) { const [x] = sorteia(base.filter(ehSaqueEx), evitar || new Set(), 1); if (x) { saqueDev.push(x); usados.add(x.c); } }
+  if (!saqueDev.some(ehDevolucaoEx)) { const [x] = sorteia(base.filter((e) => ehDevolucaoEx(e) && !usados.has(e.c)), evitar || new Set(), 1); if (x) saqueDev.push(x); }
+  return { aquecimento, especifico, conteudo, saqueDev };
+}
+/* técnica específica de um aluno: o golpe do dia (ficha, alternando; sem marcação, o rodízio da idade) e um exercício TE */
+function tecnicaDoAluno(aluno, evitar) {
+  const T = window.MTYTecnica;
+  if (!T) return [];
+  const golpe = T.golpeDoDia(aluno, (aluno.historico || []).slice(-6).flat(), TODOS_EXERCICIOS());
+  const ex = T.exercicioTecnico(golpe, [aluno.estagio].filter(Boolean), evitar, TODOS_EXERCICIOS());
+  return ex ? [{ golpe, rotulo: T.GOLPE[golpe].r, exercicio: ex, alunos: [aluno.id] }] : [];
 }
 
 /* Até a bola laranja (V e L), o treino tem que ser lúdico — brincadeira
@@ -7976,33 +8065,20 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     setDivergencias([]);
     if (aulaAtual) {
       const evitar = new Set((aluno.historico || []).slice(-2).flat());
-      const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
-      /* !e.semBola aqui também — não só no sorteio: uma aula do Plano
-         gerada ANTES desta regra (ou colada à mão) pode ter um código
-         sem bola preso no ex[], e olhar só o sorteio automático não
-         bastava pra tirar ele da sessão de hoje. */
-      let conteudo = (aulaAtual.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
-      const usados = new Set(conteudo.map((e) => e.c));
-      const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
-      const temDevolucao = conteudo.some((e) => AREAS.devolucao.busca.test(e.n + " " + e.m));
-      if (!temSaque) {
-        const [s] = sorteia(exerciciosParaSorteio().filter((e) => AREAS.saque.busca.test(e.n + " " + e.m) && e.e.includes(aluno.estagio) && !usados.has(e.c)), evitar, 1);
-        if (s) { conteudo = [...conteudo, s]; usados.add(s.c); }
-      }
-      if (!temDevolucao) {
-        const [d] = sorteia(exerciciosParaSorteio().filter((e) => AREAS.devolucao.busca.test(e.n + " " + e.m) && e.e.includes(aluno.estagio) && !usados.has(e.c)), evitar, 1);
-        if (d) conteudo = [...conteudo, d];
-      }
-      conteudo = garanteBrincadeira(conteudo, evitar, aluno.estagio);
-      setPlano({ daAula: true, aquecimento, conteudo });
+      /* as quatro partes (montarPartesSessao): aquecimento pela idade, técnica específica do golpe da ficha, a aula do plano
+         como parte geral e saque e devolução sempre */
+      const partes = montarPartesSessao({ codigos: aulaAtual.ex || [], estagios: [aluno.estagio], evitar, tecnica: tecnicaDoAluno(aluno, evitar) });
+      partes.conteudo = garanteBrincadeira(partes.conteudo, evitar, aluno.estagio);
+      setPlano({ daAula: true, ...partes });
       return;
     }
     const evitar = new Set((aluno.historico || []).slice(-2).flat());
     const f3 = fatiaInicio(aluno.nivel);
     const areaCiclo = AREAS[ciclos[cicloAtivo].areaId];
-    const pesos = [pesoBase, 0.2, f3, 0.2, Math.max(0.1, 1 - (pesoBase + 0.4 + f3))];
+    const pesoPorId = { 1: pesoBase, 2: 0.2, 3: f3, 4: 0.2, 5: Math.max(0.1, 1 - (pesoBase + 0.4 + f3)) };
+    const tecnicaHoje = tecnicaDoAluno(aluno, evitar);
     setPlano(
-      BLOCOS.map((b, i) => {
+      BLOCOS.map((b) => {
         const familias = b.id === 4 ? areaCiclo.familias : b.familias;
         /* Bloco 1 é o aquecimento: tem que ser igual ao que a aula do
            Plano já garante (exerciciosAquecimento) — semBola mais a
@@ -8010,12 +8086,14 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
            coisa de CO/CF, que incluem equipamento (elástico, medicine
            ball) impróprio pra abrir a aula. */
         const pool = b.id === 1
-          ? exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio))
+          ? exerciciosAquecimento([aluno.estagio]).filter((e) => e.e.includes(aluno.estagio))
           : exerciciosParaSorteio().filter((e) => familias.includes(e.f) && e.e.includes(aluno.estagio));
-        const min = Math.round(duracao * pesos[i]);
-        let exercicios = b.id === 3 ? garanteSaqueEDevolucao(pool, evitar) : sorteia(pool, evitar, min >= 18 ? 2 : 1);
+        const min = Math.round(duracao * pesoPorId[b.id]);
+        let exercicios = b.id === 3 ? garanteSaqueEDevolucao(pool, evitar)
+          : b.id === 2 ? tecnicaHoje.map((t) => ({ ...t.exercicio, golpeRotulo: t.rotulo }))
+          : sorteia(pool, evitar, min >= 18 ? 2 : 1);
         if (b.id === 5) exercicios = garanteBrincadeira(exercicios, evitar, aluno.estagio);
-        return { ...b, familias, minutos: min, percentual: Math.round(pesos[i] * 100), exercicios };
+        return { ...b, familias, minutos: min, percentual: Math.round(pesoPorId[b.id] * 100), exercicios };
       })
     );
   }
@@ -8026,10 +8104,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   function trocar(id, i) {
     setPlano((p) => {
       if (p.daAula) {
-        const lista = p[id];
-        const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-        const pool = (id === "aquecimento" ? exerciciosAquecimento() : exerciciosParaSorteio())
-          .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
+        const lista = p[id] || [];
+        const usados = new Set(exerciciosDaSessao(p).map((e) => e.c));
+        const pool = poolDaSecao(id, lista[i], [aluno.estagio]).filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return p;
         const novo = pool[Math.floor(Math.random() * pool.length)];
         const saiu = lista[i];
@@ -8039,7 +8116,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       return p.map((b) => {
         if (b.id !== id) return b;
         const usados = new Set(p.flatMap((x) => x.exercicios.map((e) => e.c)));
-        const pool = (b.id === 1 ? exerciciosAquecimento() : exerciciosParaSorteio().filter((e) => b.familias.includes(e.f)))
+        const pool = (b.id === 1 ? exerciciosAquecimento([aluno.estagio]) : b.id === 2 ? poolDaSecao("especifico", b.exercicios[i], [aluno.estagio])
+          : exerciciosParaSorteio().filter((e) => b.familias.includes(e.f)))
           .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return b;
         const novo = pool[Math.floor(Math.random() * pool.length)];
@@ -8154,7 +8232,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
   function adicionar(id, e) {
     setPlano((p) => {
-      if (p.daAula) return { ...p, [id]: [...p[id], e] };
+      if (p.daAula) return { ...p, [id]: [...(p[id] || []), e] };
       return p.map((b) => (b.id !== id ? b : { ...b, exercicios: [...b.exercicios, e] }));
     });
   }
@@ -8282,7 +8360,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      pro registro final e pra evitar reescrever o mesmo flatMap 3 vezes. */
   function listaTodosExercicios() {
     if (!plano || plano.chuva) return [];
-    if (plano.daAula) return [...plano.aquecimento, ...plano.conteudo];
+    if (plano.daAula) return exerciciosDaSessao(plano);
     return plano.flatMap((b) => b.exercicios);
   }
   const todosExerciciosAtuais = listaTodosExercicios();
@@ -8299,7 +8377,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      arbitrário nele seria inventar um dado que o treinador não deu. */
   function exerciciosParaTemas() {
     if (!plano || plano.chuva) return [];
-    return plano.daAula ? plano.conteudo : plano.filter((b) => b.id !== 1).flatMap((b) => b.exercicios);
+    return plano.daAula ? [...(plano.especifico || []), ...plano.conteudo, ...(plano.saqueDev || [])] : plano.filter((b) => b.id !== 1).flatMap((b) => b.exercicios);
   }
   /* Preenchimento por TOQUE não pode ser exercício-por-exercício (complexo
      demais) nem uma lista fixa de "fundamentos" genéricos — tem que ser
@@ -8309,7 +8387,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const temas = useMemo(() => temasDeExercicios(exerciciosParaTemas()), [plano]);
 
   const total = plano && !plano.daAula && !plano.chuva ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
-  const pctIP = plano && !plano.daAula && !plano.chuva ? Math.round((plano[2].minutos / total) * 100) : 0;
+  const blocoIP = plano && !plano.daAula && !plano.chuva ? plano.find((b) => b.id === 3) : null;
+  const pctIP = blocoIP ? Math.round((blocoIP.minutos / total) * 100) : 0;
   const dentro = pctIP >= 25 && pctIP <= 35;
 
   const gateAtivo = !aulaAtual && aulaEmVigorBruta && aulaEmVigorBruta.gate;
@@ -8471,44 +8550,35 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
             })()
           ) : plano.daAula ? (
             <>
-              <div className="mb-6">
-                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Aquecimento</h3>
-                {plano.aquecimento.length === 0 ? (
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício de base motora encontrado pro estágio deste jogador.</p>
-                ) : (
-                  plano.aquecimento.map((e, i) => (
-                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("aquecimento", i)} aoRemover={() => remover("aquecimento", i)}
-                      aoAtualizar={(dados) => atualizar("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
-                      duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("aquecimento", i, min)}
-                      aoMoverCima={i > 0 ? () => mover("aquecimento", i, -1) : undefined}
-                      aoMoverBaixo={i < plano.aquecimento.length - 1 ? () => mover("aquecimento", i, 1) : undefined}
-                      aoAlternarFeito={() => (e.feito ? desmarcarFeito("aquecimento", i) : marcarFeito("aquecimento", i))}
-                      proximo={!e.feito && i === plano.aquecimento.findIndex((x) => !x.feito)} />
-                  ))
-                )}
-                <AdicionarExercicioCatalogo
-                  jaUsados={new Set([...plano.aquecimento, ...plano.conteudo].map((e) => e.c))}
-                  aoAdicionar={(e) => adicionar("aquecimento", e)} />
-              </div>
-              <div className="mb-6">
-                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Conteúdo da aula</h3>
-                {plano.conteudo.length === 0 ? (
-                  <Aviso>Nenhum exercício com bola sobrou desta aula — os códigos ou não existem no catálogo, ou são exercícios sem bola (reservados pra dia de chuva). Confira o Plano.</Aviso>
-                ) : (
-                  plano.conteudo.map((e, i) => (
-                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("conteudo", i)} aoRemover={() => remover("conteudo", i)}
-                      aoAtualizar={(dados) => atualizar("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
-                      duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("conteudo", i, min)}
-                      aoMoverCima={i > 0 ? () => mover("conteudo", i, -1) : undefined}
-                      aoMoverBaixo={i < plano.conteudo.length - 1 ? () => mover("conteudo", i, 1) : undefined}
-                      aoAlternarFeito={() => (e.feito ? desmarcarFeito("conteudo", i) : marcarFeito("conteudo", i))}
-                      proximo={!e.feito && i === plano.conteudo.findIndex((x) => !x.feito)} />
-                  ))
-                )}
-                <AdicionarExercicioCatalogo
-                  jaUsados={new Set([...plano.aquecimento, ...plano.conteudo].map((e) => e.c))}
-                  aoAdicionar={(e) => adicionar("conteudo", e)} />
-              </div>
+              {/* as quatro partes da sessão (SECOES_SESSAO): aquecimento, técnica específica, parte geral, saque e devolução */}
+              {SECOES_SESSAO.map((sec, si) => {
+                const lista = plano[sec.id] || [];
+                const golpe = sec.id === "especifico" && lista.find((e) => e.golpeRotulo);
+                return (
+                  <div key={sec.id} className="mb-6" data-secao-sessao={sec.id}>
+                    <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 2 }}>{si + 1}. {sec.t}</h3>
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 9 }}>{golpe ? "Golpe de hoje: " + golpe.golpeRotulo + ". " : ""}{sec.sub}</p>
+                    {lista.length === 0 ? (
+                      sec.id === "conteudo"
+                        ? <Aviso>Nenhum exercício com bola sobrou desta aula para a parte geral: os códigos não existem no catálogo, são sem bola (dia de chuva) ou a aula é só de saque e devolução (está na última parte). Confira o Plano.</Aviso>
+                        : <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício nesta parte. Acrescente um do catálogo abaixo.</p>
+                    ) : (
+                      lista.map((e, i) => (
+                        <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar(sec.id, i)} aoRemover={() => remover(sec.id, i)}
+                          aoAtualizar={(dados) => atualizar(sec.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                          duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao(sec.id, i, min)}
+                          aoMoverCima={i > 0 ? () => mover(sec.id, i, -1) : undefined}
+                          aoMoverBaixo={i < lista.length - 1 ? () => mover(sec.id, i, 1) : undefined}
+                          aoAlternarFeito={() => (e.feito ? desmarcarFeito(sec.id, i) : marcarFeito(sec.id, i))}
+                          proximo={!e.feito && i === lista.findIndex((x) => !x.feito)} />
+                      ))
+                    )}
+                    <AdicionarExercicioCatalogo
+                      jaUsados={new Set(exerciciosDaSessao(plano).map((e) => e.c))}
+                      aoAdicionar={(e) => adicionar(sec.id, e)} />
+                  </div>
+                );
+              })}
             </>
           ) : (
             <>
@@ -8527,11 +8597,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 </div>
               </div>
 
-              {plano.map((b) => (
-                <div key={b.id} className="mb-6">
+              {plano.map((b, bi) => (
+                <div key={b.id} className="mb-6" data-bloco-sessao={b.id}>
                   <div className="flex items-baseline justify-between gap-3 mb-1">
                     <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>
-                      <span style={{ color: b.id === 3 ? C.saibro : C.grafite, marginRight: 8 }}>{b.id}</span>{b.nome}
+                      <span style={{ color: b.id === 3 ? C.saibro : C.grafite, marginRight: 8 }}>{bi + 1}</span>{b.nome}{b.id === 2 && b.exercicios[0] && b.exercicios[0].golpeRotulo ? " · " + b.exercicios[0].golpeRotulo : ""}
                     </h3>
                     <Etiqueta cor={b.id === 3 ? C.saibro : C.grafite}>{b.minutos} min · {b.percentual}%</Etiqueta>
                   </div>
@@ -18338,41 +18408,42 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      ali de uma tentativa anterior), então não é leitura confiável dos
      temas, e numa pendência não houve sessão nenhuma. */
   const temasGrupo = useMemo(
-    () => (statusGeral === "feita" && sessaoTurma ? temasDeExercicios(sessaoTurma.conteudo) : []),
+    () => (statusGeral === "feita" && sessaoTurma ? temasDeExercicios([...(sessaoTurma.especifico || []), ...sessaoTurma.conteudo, ...(sessaoTurma.saqueDev || [])]) : []),
     [statusGeral, sessaoTurma]
   );
-  const todosExerciciosTurmaAtuais = sessaoTurma ? [...sessaoTurma.aquecimento, ...sessaoTurma.conteudo] : [];
+  const todosExerciciosTurmaAtuais = exerciciosDaSessao(sessaoTurma);
 
   /* Monta a sessão de hoje da turma de verdade (com exercícios pra rodar
      em quadra), igual a Sessão de hoje individual já faz — antes disso a
      tela só mostrava o título da aula, sem exercício nenhum, então não
      dava pra "gerar a sessão do dia" de fato, só marcar status depois. */
+  /* 25/11/2026 (pedido do Richard): a sessão da turma é montada com quem veio, como no alto rendimento — a presença marcada antes
+     de gerar (quem não foi marcado conta como presente) decide a idade do aquecimento, a técnica específica (um exercício por
+     golpe, com quem trabalha cada um, pelo golpe da ficha de cada presente) e o nível do saque e devolução; a parte geral é a
+     aula do plano da turma. */
+  const presentesTurma = membros.filter((m) => presenca[m.id] !== "ausente");
   function gerarSessaoTurma() {
     const evitar = new Set();
-    const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.some((s) => estagiosTurma.includes(s))), evitar, 2);
-    let conteudo = (aulaTurma.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
-    const usados = new Set(conteudo.map((e) => e.c));
-    const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
-    const temDevolucao = conteudo.some((e) => AREAS.devolucao.busca.test(e.n + " " + e.m));
-    if (!temSaque) {
-      const [s] = sorteia(exerciciosParaSorteio().filter((e) => AREAS.saque.busca.test(e.n + " " + e.m) && e.e.some((x) => estagiosTurma.includes(x)) && !usados.has(e.c)), evitar, 1);
-      if (s) { conteudo = [...conteudo, s]; usados.add(s.c); }
-    }
-    if (!temDevolucao) {
-      const [d] = sorteia(exerciciosParaSorteio().filter((e) => AREAS.devolucao.busca.test(e.n + " " + e.m) && e.e.some((x) => estagiosTurma.includes(x)) && !usados.has(e.c)), evitar, 1);
-      if (d) conteudo = [...conteudo, d];
-    }
-    if (estagiosTurma.some((s) => s === "V" || s === "L")) conteudo = garanteBrincadeira(conteudo, evitar, estagiosTurma.find((s) => s === "V" || s === "L"));
-    setSessaoTurma({ aquecimento, conteudo });
+    const presentes = presentesTurma.length ? presentesTurma : membros;
+    const estagios = [...new Set(presentes.map((m) => m.estagio).filter(Boolean))];
+    const tecnica = window.MTYTecnica
+      ? window.MTYTecnica.tecnicaDoGrupo(presentes.map((m) => ({ ...m, ultimos: (m.historico || []).slice(-6).flat() })), TODOS_EXERCICIOS())
+      : [];
+    const partes = montarPartesSessao({ codigos: aulaTurma.ex || [], estagios: estagios.length ? estagios : estagiosTurma, evitar, tecnica });
+    if (estagios.some((s) => s === "V" || s === "L")) partes.conteudo = garanteBrincadeira(partes.conteudo, evitar, estagios.find((s) => s === "V" || s === "L"));
+    setSessaoTurma({ ...partes, presentes: presentes.map((m) => m.id) });
   }
   function trocarSessaoTurma(secao, i) {
     setSessaoTurma((p) => {
-      const lista = p[secao];
-      const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-      const pool = (secao === "aquecimento" ? exerciciosAquecimento() : exerciciosParaSorteio())
-        .filter((e) => e.e.some((s) => estagiosTurma.includes(s)) && !usados.has(e.c));
+      const lista = p[secao] || [];
+      const usados = new Set(exerciciosDaSessao(p).map((e) => e.c));
+      const est = [...new Set(membros.filter((m) => !p.presentes || p.presentes.includes(m.id)).map((m) => m.estagio).filter(Boolean))];
+      const pool = poolDaSecao(secao, lista[i], est.length ? est : estagiosTurma)
+        .filter((e) => !usados.has(e.c));
       if (!pool.length) return p;
-      const novo = pool[Math.floor(Math.random() * pool.length)];
+      const sorteado = pool[Math.floor(Math.random() * pool.length)];
+      /* na técnica específica a troca mantém quem trabalha aquele golpe */
+      const novo = lista[i] && lista[i].paraAlunos ? { ...sorteado, golpeRotulo: lista[i].golpeRotulo, paraAlunos: lista[i].paraAlunos } : sorteado;
       return { ...p, [secao]: lista.map((e, k) => (k === i ? novo : e)) };
     });
   }
@@ -18383,7 +18454,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSessaoTurma((p) => ({ ...p, [secao]: p[secao].map((e, k) => (k === i ? atualizado : e)) }));
   }
   function adicionarSessaoTurma(secao, e) {
-    setSessaoTurma((p) => ({ ...p, [secao]: [...p[secao], e] }));
+    setSessaoTurma((p) => ({ ...p, [secao]: [...(p[secao] || []), e] }));
   }
   function moverSessaoTurma(secao, i, direcao) {
     setSessaoTurma((p) => {
@@ -18446,7 +18517,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
          igual ao que TelaSessao grava pra uma aula avulsa — mesmos campos
          de anotação (corrigi/ignorei/mudaria/presença), preenchidos uma
          vez pelo treinador e copiados pra cada jogador do grupo. */
-      const cods = sessaoTurma ? [...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c) : [];
+      const cods = exerciciosDaSessao(sessaoTurma).map((e) => e.c);
       const exerciciosStatus = {};
       todosExerciciosTurmaAtuais.forEach((e) => { exerciciosStatus[e.c] = statusExercicios[e.c] || "feito"; });
       const ciclo = modeloChuva ? ("Dia de chuva · " + modeloChuva.nome)
@@ -18741,6 +18812,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             {!sessaoTurma ? (
               <div className="mb-5">
                 <div className="mb-3"><Etiqueta cor={C.saibro}>Preparar</Etiqueta></div>
+                <p data-aviso-presentes style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>
+                  A sessão é montada com quem veio: marque em Presença quem faltou antes de gerar. Hoje: {presentesTurma.length} de {membros.length}.
+                </p>
                 <Botao onClick={gerarSessaoTurma} variante="saibro">Gerar sessão de hoje</Botao>
               </div>
             ) : (
@@ -18754,38 +18828,41 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                     </button>
                   )}
                 </div>
-                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Aquecimento</h3>
-                {sessaoTurma.aquecimento.length === 0 ? (
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício de base motora encontrado pros estágios desta turma.</p>
-                ) : (
-                  sessaoTurma.aquecimento.map((e, i) => (
-                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("aquecimento", i)} aoRemover={() => removerSessaoTurma("aquecimento", i)}
-                      aoAtualizar={(dados) => atualizarSessaoTurma("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
-                      aoMoverCima={i > 0 ? () => moverSessaoTurma("aquecimento", i, -1) : undefined}
-                      aoMoverBaixo={i < sessaoTurma.aquecimento.length - 1 ? () => moverSessaoTurma("aquecimento", i, 1) : undefined}
-                      aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma("aquecimento", i) : marcarFeitoSessaoTurma("aquecimento", i))}
-                      proximo={!e.feito && i === sessaoTurma.aquecimento.findIndex((x) => !x.feito)} />
-                  ))
-                )}
-                <AdicionarExercicioCatalogo
-                  jaUsados={new Set([...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c))}
-                  aoAdicionar={(e) => adicionarSessaoTurma("aquecimento", e)} />
-                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "18px 0 9px" }}>Conteúdo da aula</h3>
-                {sessaoTurma.conteudo.length === 0 ? (
-                  <Aviso>Nenhum exercício com bola sobrou desta aula — os códigos ou não existem no catálogo, ou são exercícios sem bola (reservados pra dia de chuva). Confira o Plano.</Aviso>
-                ) : (
-                  sessaoTurma.conteudo.map((e, i) => (
-                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("conteudo", i)} aoRemover={() => removerSessaoTurma("conteudo", i)}
-                      aoAtualizar={(dados) => atualizarSessaoTurma("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
-                      aoMoverCima={i > 0 ? () => moverSessaoTurma("conteudo", i, -1) : undefined}
-                      aoMoverBaixo={i < sessaoTurma.conteudo.length - 1 ? () => moverSessaoTurma("conteudo", i, 1) : undefined}
-                      aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma("conteudo", i) : marcarFeitoSessaoTurma("conteudo", i))}
-                      proximo={!e.feito && i === sessaoTurma.conteudo.findIndex((x) => !x.feito)} />
-                  ))
-                )}
-                <AdicionarExercicioCatalogo
-                  jaUsados={new Set([...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c))}
-                  aoAdicionar={(e) => adicionarSessaoTurma("conteudo", e)} />
+                {/* as quatro partes, montadas com os presentes (gerarSessaoTurma) */}
+                {SECOES_SESSAO.map((sec, si) => {
+                  const lista = sessaoTurma[sec.id] || [];
+                  const nomeDe = (id) => ((membros.find((m) => m.id === id) || {}).nome || "").split(" ")[0];
+                  return (
+                    <div key={sec.id} data-secao-turma={sec.id} style={{ marginTop: si ? 18 : 0 }}>
+                      <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 2 }}>{si + 1}. {sec.t}</h3>
+                      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 9 }}>
+                        {sec.id === "especifico" ? "Um exercício por golpe, pelo golpe da ficha de cada aluno presente. " : ""}{sec.id === "aquecimento" && sessaoTurma.presentes ? "Para a idade de quem veio. " : ""}{sec.sub}
+                      </p>
+                      {lista.length === 0 ? (
+                        sec.id === "conteudo"
+                          ? <Aviso>Nenhum exercício com bola sobrou desta aula para a parte geral: os códigos não existem no catálogo, são sem bola (dia de chuva) ou a aula é só de saque e devolução (está na última parte). Confira o Plano.</Aviso>
+                          : <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício nesta parte. Acrescente um do catálogo abaixo.</p>
+                      ) : (
+                        lista.map((e, i) => (
+                          <div key={e.c + i}>
+                            {e.paraAlunos && e.paraAlunos.length > 0 && (
+                              <p data-golpe-alunos style={{ ...prosa, fontSize: 12.5, fontWeight: 700, margin: "6px 0 4px" }}>{e.golpeRotulo || "Golpe"} · {e.paraAlunos.map(nomeDe).filter(Boolean).join(", ")}</p>
+                            )}
+                            <CartaoExercicio e={e} aoTrocar={() => trocarSessaoTurma(sec.id, i)} aoRemover={() => removerSessaoTurma(sec.id, i)}
+                              aoAtualizar={(dados) => atualizarSessaoTurma(sec.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                              aoMoverCima={i > 0 ? () => moverSessaoTurma(sec.id, i, -1) : undefined}
+                              aoMoverBaixo={i < lista.length - 1 ? () => moverSessaoTurma(sec.id, i, 1) : undefined}
+                              aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma(sec.id, i) : marcarFeitoSessaoTurma(sec.id, i))}
+                              proximo={!e.feito && i === lista.findIndex((x) => !x.feito)} />
+                          </div>
+                        ))
+                      )}
+                      <AdicionarExercicioCatalogo
+                        jaUsados={new Set(exerciciosDaSessao(sessaoTurma).map((e) => e.c))}
+                        aoAdicionar={(e) => adicionarSessaoTurma(sec.id, e)} />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>
@@ -24842,6 +24919,10 @@ function FormTurmaAR({ inicial, atletas, professores, quadras, aoSalvar, aoCance
    "Escolher outro" para pegar um da lista em vez de sortear. As trocas ficam registradas na sessão (a divergência é o dado). */
 function poolTrocaAR(atual, tema, estagios) {
   const A = ARM(), T = A.TEMAS[tema] || {}, est = estagios && estagios.length ? estagios : ["A", "C"];
+  /* 25/11/2026: o aquecimento troca dentro da lista fechada; a técnica específica troca dentro do mesmo golpe */
+  if (tema === "entrada") return exerciciosAquecimento(est).filter((e) => e.c !== (atual && atual.c) && (!e.e || e.e.some((x) => est.includes(x))));
+  const golpeTE = (atual && atual.f === "TE" && atual.golpe) || (window.MTYTecnica && window.MTYTecnica.GOLPE[String(tema || "").replace(/^tec:/, "")] ? String(tema).replace(/^tec:/, "") : null);
+  if (golpeTE) return poolDaSecao("especifico", { golpe: golpeTE }, est).filter((e) => e.c !== (atual && atual.c));
   return exerciciosParaSorteio().filter((e) => e.c !== (atual && atual.c) && (atual ? e.f === atual.f : (T.familias || []).includes(e.f)) && (!e.e || e.e.some((x) => est.includes(x))));
 }
 function ExercicioSessaoAR({ codigo, tema, editado, fechada, aoTrocar, aoRemover, aoEscolher, aoAtualizar, exerciciosCustom, setExerciciosCustom }) {
@@ -24889,7 +24970,18 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtu
   useEffect(() => { if (!avisoOutro) return; const t = setTimeout(() => setAvisoOutro(""), 6000); return () => clearTimeout(t); }, [avisoOutro]);
   const montar = async () => {
     const lista = atletas.filter((a) => presentes.includes(a.id) && (ars[a.id] || {}).plano).map((a) => ({ id: a.id, nome: a.nome, ar: ars[a.id], registros: regs[a.id] || [] }));
-    const s = A.montarSessao({ atletas: lista, hoje, duracaoMin: duracao, catalogo: TODOS_EXERCICIOS(), estagio: "C" });
+    /* estrutura da sessão (25/11/2026): aquecimento pela idade de quem veio e técnica específica pelo golpe da ficha de cada um */
+    const T = window.MTYTecnica, dia = Math.floor(Date.parse(hoje + "T12:00:00Z") / 86400000);
+    const veio = atletas.filter((a) => lista.some((x) => x.id === a.id));
+    const estagios = [...new Set(veio.map((a) => a.estagio).filter(Boolean))];
+    const tecnica = {};
+    if (T) veio.forEach((a) => {
+      const golpe = T.golpeDoDia(a, (a.historico || []).slice(-6).flat(), TODOS_EXERCICIOS(), dia);
+      const e = T.exercicioTecnico(golpe, [a.estagio || "C"], null, TODOS_EXERCICIOS());
+      if (e) tecnica[a.id] = { golpe, rotulo: T.GOLPE[golpe].r, c: e.c, n: e.n };
+    });
+    const aquecimento = exerciciosAquecimento(estagios.length ? estagios : ["C"]).map((e) => ({ c: e.c, n: e.n }));
+    const s = A.montarSessao({ atletas: lista, hoje, duracaoMin: duracao, catalogo: TODOS_EXERCICIOS(), estagio: "C", aquecimento, tecnica });
     s.id = "ses-" + Date.now().toString(36); s.treinadorUid = uidAtual || null; s.treinadorNome = nomeProfessor || "";
     if (turma) {
       /* a presença da turma se lê por aqui: quem era da turma hoje, e quem veio mas ainda não tem plano individual */

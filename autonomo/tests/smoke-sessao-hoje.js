@@ -24,7 +24,7 @@ function HostSessao(){const [i,setI]=useState(0);window.__setI=setI;const v=VARS
 ReactDOM.createRoot(document.getElementById("root")).render(<HostSessao />);`;
 const pagina=`<!doctype html><meta charset=utf-8><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script src=/aulas-mes.js></script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};</script>
-<script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-jogo.js></script>
+<script src=/situacoes-jogo.js></script><script src=/tecnica-especifica.js></script><script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-jogo.js></script>
 <script type="text/babel">${corpo}</script>`;
 const m={"/aulas-mes.js":require("path").join(__dirname,"../../mty/aulas-mes.js"),"/r.js":CDN+"/react-18.3.1/package/umd/react.development.js","/d.js":CDN+"/react-dom-18.3.1/package/umd/react-dom.development.js","/p.js":CDN+"/prop-types-15.8.1/package/prop-types.min.js","/c.js":CDN+"/recharts-2.15.4/package/umd/Recharts.js","/b.js":CDN+"/babel-standalone-7.29.9/package/babel.min.js"};
 const srv=http.createServer((q,r)=>{const u=q.url.split("?")[0];if(u==="/"){r.writeHead(200,{"content-type":"text/html; charset=utf-8"});return r.end(pagina)}if(m[u]){r.writeHead(200,{"content-type":"text/javascript"});return r.end(fs.readFileSync(m[u]))}const f=path.join(raiz,decodeURIComponent(u));if(f.startsWith(raiz)&&fs.existsSync(f)&&fs.statSync(f).isFile()){r.writeHead(200,{"content-type":"text/javascript"});return r.end(fs.readFileSync(f))}r.writeHead(404);r.end()}).listen(0);
@@ -37,6 +37,21 @@ for(let i=0;i<15;i++){await p.evaluate(k=>window.__setI(k),i);await p.waitForTim
  const nome=await p.textContent("#var",{timeout:4000}).catch(()=>null);if(!nome){console.log("variante",i,"QUEBROU a tela:",erros.filter(x=>!x.startsWith("c:The above")).slice(-3).map(x=>x.slice(0,300)));break;}const bt=p.getByRole("button",{name:/Gerar sessão|Pré-visualizar sessão/});
  const e0=erros.length;let res="sem botão";
  if(await bt.count()){await bt.first().click();await p.waitForTimeout(500);const t=await p.evaluate(()=>document.body.innerText);res=/PREVISTOS|Gerar nova versão|CONDUZIR/.test(t)?"OK gerou":"NÃO GEROU";}
- assert.strictEqual(res,"OK gerou",app+": variante \""+nome+"\" → "+res+(erros.length>e0?" · "+erros[erros.length-1].slice(0,160):""));}
+ assert.strictEqual(res,"OK gerou",app+": variante \""+nome+"\" → "+res+(erros.length>e0?" · "+erros[erros.length-1].slice(0,160):""));
+ /* estrutura da sessão (25/11/2026): aquecimento, técnica específica (um golpe isolado), parte geral, saque e devolução */
+ if(app==="mty"){
+  const secoes=await p.$$eval("[data-secao-sessao]",l=>l.map(x=>({id:x.getAttribute("data-secao-sessao"),t:x.innerText})));
+  const blocos=await p.$$eval("[data-bloco-sessao]",l=>l.map(x=>({id:x.getAttribute("data-bloco-sessao"),t:x.innerText})));
+  if(/COM PLANO normal|COM PLANO sem historico/.test(nome)){
+   assert.deepStrictEqual(secoes.map(x=>x.id),["aquecimento","especifico","conteudo","saqueDev"],nome+": as quatro partes, nesta ordem");
+   assert(/isolado/.test(secoes[1].t)&&/Golpe de hoje/.test(secoes[1].t),nome+": técnica específica com um golpe isolado: "+secoes[1].t.slice(0,200));
+   assert(/saque|devolu/i.test(secoes[3].t)&&!/Nenhum exercício nesta parte/.test(secoes[3].t),nome+": saque e devolução preenchido");
+  }
+  if(blocos.length){
+   assert.deepStrictEqual(blocos.map(x=>x.id),["1","2","4","5","3"],nome+": ciclo avulso na ordem aquecimento, técnica, geral, saque e devolução");
+   assert(/isolado/.test(blocos[1].t),nome+": bloco de técnica específica com golpe isolado");
+   assert(!/Visualização Pre-Treino|Saltos com Corda|Prancha Lateral|2x1 - Mudança|Cobertura Total/.test(blocos[0].t),nome+": aquecimento só dentro da quadra: "+blocos[0].t.slice(0,200));
+  }
+ }}
 assert.deepStrictEqual(erros,[],app+": erros de JS "+erros.join(" | "));console.log("smoke-sessao-hoje "+app+": ok (15 variantes)");
 await b.close();srv.close()})().catch(e=>{console.error(e.message||e);process.exit(1)});

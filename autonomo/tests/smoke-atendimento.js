@@ -119,7 +119,7 @@ const srv = http.createServer((q, r) => {
 const base = "http://localhost:" + srv.address().port;
 
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => rota.fulfill({ contentType: /fonts/.test(rota.request().url()) ? "text/css" : "text/javascript", body: "" }));
   const p = await ctx.newPage();
