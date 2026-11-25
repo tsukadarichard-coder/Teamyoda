@@ -187,7 +187,28 @@ async function inscreverEvento(db, org, body, nomeContato, telefoneContato) {
     /* 25/11/2026: o app não abre a gestão; o toque abre o app e a inscrição se vê no painel, pela Central */
     url: "/", tag: "evento-" + eventoId,
   });
+  /* e na Central, para o Richard e o administrativo (acesso total ao painel desde 25/11/2026): o toque abre Gestão › Eventos */
+  if (org === "team-yoda") await avisarCentral({
+    titulo: "Inscrição nova · " + resultado.eventoNome,
+    corpo: (resultado.crianca ? resultado.crianca + " (responsável: " + nomeContato + ")" : nomeContato) + (resultado.status === "espera" ? " · lista de espera" : ""),
+    url: "https://teamyoda.com.br/gestao?aba=eventos", tag: "central-evento-" + eventoId,
+  });
   return resposta(200, { ok: true, eventoNome: resultado.eventoNome, status: resultado.status });
+}
+
+/* aviso na Central (Richard e administrativo), pelas preferências de cada um: tipo "inscricoes" ligado e fora do silêncio.
+   O aviso é extra: se falhar, a inscrição continua valendo. */
+async function avisarCentral(aviso) {
+  try {
+    const AV = require("./_central-avisos"), db = admin.firestore(), uids = {};
+    const snap = await db.collection(P.COLECAO).where("app", "==", "central").get();
+    snap.forEach((d) => { const x = d.data(); if (x.uid && (x.papel === "richard" || x.papel === "administrativo")) uids[x.uid] = x.papel; });
+    for (const uid of Object.keys(uids)) {
+      const pd = await db.collection("centralAvisos").doc(uid).get(), prefs = AV.prefsDe(pd.exists ? pd.data() : null, uids[uid]);
+      if (!prefs.tipos.inscricoes || AV.emSilencio(prefs, Date.now())) continue;
+      await P.avisar(admin, { app: "central", uid }, aviso);
+    }
+  } catch (e) { console.error("aviso na Central:", e && e.message); }
 }
 
 /* opção de inscrição (1 semana, 2 semanas…): obrigatória quando o evento tem opções; guarda o nome e o valor dela */

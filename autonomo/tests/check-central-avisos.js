@@ -60,8 +60,8 @@ const ms = (data, hhmm) => A.momentoSP(data, hhmm);
   /* ── regras puras ── */
   assert.deepStrictEqual(A.sp(ms("2026-11-16", "08:00")), { data: "2026-11-16", hhmm: "08:00", dow: 1 }, "São Paulo = UTC−3");
   const pr = A.prefsPadrao("richard");
-  assert.deepStrictEqual(Object.keys(pr.tipos), ["tarefas", "resumo", "blocos", "agentes", "pagamentosAlerta", "tarefasAdm"]);
-  assert.deepStrictEqual(Object.keys(A.prefsPadrao("administrativo").tipos), ["rotinaAdm", "tarefasAdm", "lembretesPagamento"], "administrativo: só a rotina dele, as tarefas e os pagamentos");
+  assert.deepStrictEqual(Object.keys(pr.tipos), ["tarefas", "resumo", "blocos", "agentes", "pagamentosAlerta", "inscricoes", "tarefasAdm"]);
+  assert.deepStrictEqual(Object.keys(A.prefsPadrao("administrativo").tipos), ["rotinaAdm", "inscricoes", "tarefasAdm", "lembretesPagamento"], "administrativo: só a rotina dele, inscrições, as tarefas e os pagamentos");
   assert.ok(A.emSilencio(pr, ms("2026-11-16", "23:10")) && A.emSilencio(pr, ms("2026-11-17", "06:59")) && !A.emSilencio(pr, ms("2026-11-17", "07:00")), "22h às 7h atravessa a meia-noite");
   assert.ok(!A.emSilencio({ silencio: { ativo: false, de: "22:00", ate: "07:00" } }, ms("2026-11-16", "23:10")), "silêncio desligado");
   assert.ok(A.emSilencio({ silencio: { ativo: true, de: "13:00", ate: "14:00" } }, ms("2026-11-16", "13:30")) && !A.emSilencio({ silencio: { ativo: true, de: "13:00", ate: "14:00" } }, ms("2026-11-16", "14:30")));
@@ -94,14 +94,14 @@ const ms = (data, hhmm) => A.momentoSP(data, hhmm);
   let r = await chamar("GET", "adm");
   assert.strictEqual(r.status, 200); assert.strictEqual(r.corpo.papel, "administrativo");
   assert.ok(!("dados" in r.corpo) && !("auto" in r.corpo) && !("implantacao" in r.corpo), "o administrativo não vê agenda, negócios nem a Implantação");
-  assert.deepStrictEqual(r.corpo.tipos.map((t) => t.id), ["rotinaAdm", "tarefasAdm", "lembretesPagamento"]); assert.deepStrictEqual(r.corpo.tipos.map((t) => t.ativo), [true, true, false], "rotina do administrativo na Etapa 3; pagamentos na Etapa 4");
+  assert.deepStrictEqual(r.corpo.tipos.map((t) => t.id), ["rotinaAdm", "inscricoes", "tarefasAdm", "lembretesPagamento"]); assert.deepStrictEqual(r.corpo.tipos.map((t) => t.ativo), [true, true, true, false], "rotina do administrativo na Etapa 3; pagamentos na Etapa 4");
   assert.strictEqual(r.corpo.chavePush, "BPublicaDeTeste");
   assert.strictEqual((await chamar("POST", "adm", { acao: "implantacaoSalvar", tarefas: [] })).status, 403, "Implantação só do Richard");
   assert.strictEqual((await chamar("POST", "adm", { dados: { agenda: [] } })).status, 403, "o administrativo não grava a agenda do Richard");
   r = await chamar("GET", "ric");
   assert.strictEqual(r.status, 200); assert.strictEqual(r.corpo.papel, "richard");
   assert.ok(r.corpo.dados && r.corpo.auto, "o de sempre continua"); assert.strictEqual(r.corpo.implantacao.length, 11, "a lista já vem carregada");
-  assert.deepStrictEqual(r.corpo.tipos.filter((t) => t.ativo).map((t) => t.id), ["tarefas", "resumo", "blocos", "agentes", "tarefasAdm"], "Etapa 2 liga blocos e agentes; tarefas do administrativo ligadas");
+  assert.deepStrictEqual(r.corpo.tipos.filter((t) => t.ativo).map((t) => t.id), ["tarefas", "resumo", "blocos", "agentes", "inscricoes", "tarefasAdm"], "Etapa 2 liga blocos e agentes; tarefas do administrativo ligadas");
 
   /* agenda continua igual: gravar dados não mexe na Implantação e vice-versa */
   assert.strictEqual((await chamar("POST", "ric", { dados: { agenda: [{ id: "ag1", titulo: "Reunião", data: "2026-11-18", inicio: "10:00" }] } })).status, 200);
@@ -113,7 +113,7 @@ const ms = (data, hhmm) => A.momentoSP(data, hhmm);
 
   /* preferências: cada um as suas, só os tipos do perfil */
   r = await chamar("POST", "adm", { acao: "avisosSalvar", prefs: { tipos: { tarefas: true, rotinaAdm: false }, silencio: { ativo: true, de: "21:00", ate: "08:00" } } });
-  assert.deepStrictEqual(r.corpo.avisos.tipos, { rotinaAdm: false, tarefasAdm: true, lembretesPagamento: true }); assert.ok(!banco["centralAvisos/u-adm"].tipos.tarefas);
+  assert.deepStrictEqual(r.corpo.avisos.tipos, { rotinaAdm: false, inscricoes: true, tarefasAdm: true, lembretesPagamento: true }); assert.ok(!banco["centralAvisos/u-adm"].tipos.tarefas);
   assert.strictEqual((await chamar("GET", "adm")).corpo.avisos.silencio.de, "21:00");
 
   /* inscrição, estado, teste e cancelar */

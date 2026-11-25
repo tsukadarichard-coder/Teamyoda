@@ -25614,16 +25614,17 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-ficha-rapida";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-gestao-total";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
-const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
+const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
 function novidadesTYPara(veFinanceiro) {
   const itens = NOVIDADES_TY.filter((x) => !x.so || (x.so === "financeiro" && veFinanceiro));
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
+  { novo: true, so: "financeiro", t: "Acesso total ao painel de gestão", d: "O Richard e o administrativo agora veem todas as telas do painel de gestão (teamyoda.com.br/gestao, pela Central): Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
+  { t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
   { t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
   { t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
   { t: "Meu plano com o professor e as próximas aulas", d: "Quando o aluno abre o Meu plano (pela Área do aluno com o e-mail ou pelo link), aparecem o professor dele (e o de cada turma) e as próximas aulas dos 14 dias seguintes: individual, turma, reposição, aula experimental e alto rendimento, com dia, horário, quadra, professor e substituto. Aula cancelada aparece riscada com o motivo. Tudo sai da Agenda e dos horários fixos, sem nada novo para preencher.", onde: "Meu plano do aluno", aba: "alunos" },
@@ -28811,17 +28812,21 @@ function App() {
     if (autenticado && !carregandoCustom && prontoRef.current.exerciciosCustom) grave("mty:exerciciosCustom:v1", exerciciosCustom, true);
   }, [exerciciosCustom, carregandoCustom, autenticado]);
 
+  /* 25/11/2026 (pedido do Richard: "Eu preciso do acesso total e o Adm tb"): no painel de gestão, o Richard (Financeiro) e o
+     administrativo (Cobrança) veem todas as telas da coordenação, mesmo sem a conta ser de coordenador. No app nada muda. */
+  const gestaoPainel = PAINEL_GESTAO && (ehDonoFinanceiro() || papelFin === "admin") && (orgAtual === "team-yoda" || orgAtual === "39-ranch");
+  const coordOuGestao = papelAtual === "coordenador" || gestaoPainel;
   /* pedidos de cadastro parados: só interessa ao coordenador, então nem
      tenta buscar pros outros papéis. Sondagem simples — não precisa de
      tempo real pra um número que só o sininho mostra. */
   useEffect(() => {
-    if (papelAtual !== "coordenador" || !PAINEL_GESTAO) { setPedidosPendentesCount(0); return; }
+    if (!coordOuGestao || !PAINEL_GESTAO) { setPedidosPendentesCount(0); return; }
     let ativo = true;
     function checar() { contarPedidosPendentes().then((n) => { if (ativo) setPedidosPendentesCount(n); }); }
     checar();
     const t = setInterval(checar, 60000);
     return () => { ativo = false; clearInterval(t); };
-  }, [papelAtual]);
+  }, [papelAtual, coordOuGestao]);
 
   const avisos = avisosDoProfessor(alunos, turmas, reservas, torneios, eventos, uidAtual);
   const idLembrete = (l) => "lembrete:" + l.tipo + ":" + l.titulo + ":" + l.hora;
@@ -28830,10 +28835,10 @@ function App() {
   const lembretesVisiveis = avisos.lembretes.filter((l) => !avisosVistos.has(idLembrete(l)));
   const pendenciasVisiveis = avisos.pendencias.filter((p) => !avisosVistos.has(idPendencia(p)));
   const pedidosAlunosVisiveis = avisos.pedidosAlunos.filter((p) => !avisosVistos.has(idPedidoAluno(p)));
-  const reservasNovasVisiveis = papelAtual === "coordenador" ? avisos.reservasNovas : [];
+  const reservasNovasVisiveis = coordOuGestao ? avisos.reservasNovas : [];
   /* inscrições de torneio e de evento e pedidos de cadastro levam a telas do painel: aparecem só no sino do painel */
-  const inscricoesTorneioNovasVisiveis = papelAtual === "coordenador" && PAINEL_GESTAO ? avisos.inscricoesTorneioNovas : [];
-  const inscricoesEventoNovasVisiveis = papelAtual === "coordenador" && PAINEL_GESTAO ? avisos.inscricoesEventoNovas : [];
+  const inscricoesTorneioNovasVisiveis = coordOuGestao && PAINEL_GESTAO ? avisos.inscricoesTorneioNovas : [];
+  const inscricoesEventoNovasVisiveis = coordOuGestao && PAINEL_GESTAO ? avisos.inscricoesEventoNovas : [];
   function verReserva(r) {
     setReservas(reservas.map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x)));
     setAgendaDataAlvo(r.data);
@@ -28869,7 +28874,7 @@ function App() {
     reservasNovasVisiveis.length + inscricoesTorneioNovasVisiveis.length + inscricoesEventoNovasVisiveis.length +
     pedidosPendentesCount + avisos.planosGerados.length;
   function abrirAvisos() {
-    if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
+    if (!avisosAberto && coordOuGestao && PAINEL_GESTAO) contarPedidosPendentes().then(setPedidosPendentesCount);
     setAvisosAberto(!avisosAberto);
   }
 
@@ -28899,14 +28904,14 @@ function App() {
      própria aqui, sem depender desse campo (o mesmo vale do lado do
      servidor, em reservar-quadra.js, pro link público de reserva). Só
      pro coordenador, do mesmo jeito que qualquer outra academia. */
-  const mostraQuadras = papelAtual === "coordenador" && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarQuadras === true));
+  const mostraQuadras = coordOuGestao && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarQuadras === true));
   /* Torneios e Eventos seguem o mesmo padrão de Quadras: escondidos por
      padrão, e a Team Yoda tem a mesma liberação direta (sem depender do
      campo mostrarTorneiosEventos, que ainda não dá pra ligar em produção
      sem o ADMIN_SECRET). Um único campo/flag liga as duas abas juntas —
      nasceram como um pedido só ("torneios e eventos"), então não faz
      sentido ligar uma sem a outra por enquanto. */
-  const mostraTorneiosEventos = papelAtual === "coordenador" && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarTorneiosEventos === true));
+  const mostraTorneiosEventos = coordOuGestao && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarTorneiosEventos === true));
   /* Menu lateral, por segmento (pedido: agrupar o que já existia, sem
      remover nenhum destino): "Dia a dia" é a rotina diária de qualquer
      treinador; "Alunos e turmas" é cadastro; "Academia" é gestão
@@ -28931,10 +28936,10 @@ function App() {
     ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
     ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
     ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
-    ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
+    ...(ehCoordenador || gestaoPainel ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
     { v: "relatorio", r: "Relatório de aulas" },
-    ...(ehDonoFinanceiro() ? [{ v: "atendimento", r: "Padrão de atendimento" }] : []),
-    ...(ehCoordenador ? [{ v: "equipe", r: "Equipe da organização" }] : []),
+    ...(ehDonoFinanceiro() || gestaoPainel ? [{ v: "atendimento", r: "Padrão de atendimento" }] : []),
+    ...(ehCoordenador || gestaoPainel ? [{ v: "equipe", r: "Equipe da organização" }] : []),
   ];
   /* no app, uma tela que agora mora no painel (atalho da Agenda, aviso de inscrição ou de cadastro) abre o painel nela */
   /* 25/11/2026 (pedido do Richard: "não quero que pelo aplicativo do Team Yoda tenha acesso à central de gestão"): o app não abre
@@ -28947,10 +28952,11 @@ function App() {
   useEffect(() => {
     if (!PAINEL_GESTAO || !podeGestao) return;
     if (aba === "cobranca" && papelFin === null) return; /* o papel do Financeiro ainda está chegando */
+    if (!orgAtual) return; /* a academia da conta ainda está chegando (as telas da gestão dependem dela) */
     const ok = aba === "gestao-inicio" || aba === "ajuda" || (aba === "alunos" && abertoId) || itensGestao.some((t) => t.v === aba);
     if (!ok) setAba("gestao-inicio");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aba, podeGestao, papelFin, abertoId]);
+  }, [aba, podeGestao, papelFin, abertoId, orgAtual]);
   const gruposNav = PAINEL_GESTAO ? [
     { id: "gestao", label: "Gestão da academia", itens: itensGestao },
     { id: "config", label: "Ajuda", itens: [{ v: "ajuda", r: "Ajuda" }] },
@@ -29445,7 +29451,7 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
-         aba === "atendimento" && ehDonoFinanceiro() && window.MTYAtendimento ? <TelaPadraoAtendimento alunos={alunos} turmas={turmas} ocorrencias={ocorrencias}
+         aba === "atendimento" && (ehDonoFinanceiro() || gestaoPainel) && window.MTYAtendimento ? <TelaPadraoAtendimento alunos={alunos} turmas={turmas} ocorrencias={ocorrencias}
            irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
          aba === "cobranca" && papelFin === "admin" ? <TelaCobranca /> :
@@ -29454,7 +29460,7 @@ function App() {
            reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
            modelos={modelosMensagem} setModelos={setModelosMensagem} orgAtual={orgAtual}
            irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} irPara={(v) => setAba(v)} /></> :
-         aba === "aulas-equipe" && papelAtual === "coordenador" ? <TelaAulasEquipe alunos={alunos} turmas={turmas}
+         aba === "aulas-equipe" && (papelAtual === "coordenador" || gestaoPainel) ? <TelaAulasEquipe alunos={alunos} turmas={turmas}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :

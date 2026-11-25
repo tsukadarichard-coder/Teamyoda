@@ -15,6 +15,8 @@ const TIPOS = {
   pagamentosAlerta: { rot: "Pagamentos com 10 e 30 dias de atraso", papeis: ["richard"], etapa: 4 },
   rotinaAdm: { rot: "Rotina do administrativo", papeis: ["administrativo"], etapa: 3 },
   /* 25/11/2026: tarefas que o Richard manda ao administrativo (ele recebe a nova; o Richard recebe a concluída) */
+  /* 25/11/2026: inscrição nova em evento do site do Team Yoda (o Richard e o administrativo têm acesso total ao painel) */
+  inscricoes: { rot: "Inscrições novas nos eventos do site", papeis: ["richard", "administrativo"], etapa: 3 },
   tarefasAdm: { rot: "Tarefas do administrativo (nova para ele, concluída para o Richard)", papeis: ["richard", "administrativo"], etapa: 3 },
   lembretesPagamento: { rot: "Lembretes de pagamento do dia", papeis: ["administrativo"], etapa: 4 },
 };
