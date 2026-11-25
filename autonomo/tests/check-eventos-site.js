@@ -74,7 +74,7 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
   assert.deepStrictEqual([c.opcaoId, c.opcaoNome, c.valor], ["s2", "2 semanas", 800], "opção e valor guardados");
   assert.strictEqual(avisos.length, 3); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
   assert.deepStrictEqual(avisos.slice(1).map((a) => a.filtro.app + ":" + a.filtro.uid).sort(), ["central:u-adm", "central:u-ric"], "Central: Richard e administrativo (quem desligou não recebe)");
-  assert(avisos[1].aviso.url === "https://teamyoda.com.br/gestao?aba=eventos" && /Lia Souza/.test(avisos[1].aviso.corpo), "o aviso da Central abre Gestão › Eventos");
+  assert(avisos[1].aviso.url === "/ty/gestao?aba=eventos" && /Lia Souza/.test(avisos[1].aviso.corpo), "o aviso da Central abre Gestão › Eventos");
   assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/" && /pela Central/.test(avisos[0].aviso.corpo), "o aviso não abre a gestão pelo app");
   /* lotou: a próxima vai para a lista de espera */
   assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s4", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "opção fora do site não vale no site");

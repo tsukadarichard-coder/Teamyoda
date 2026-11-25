@@ -60,8 +60,11 @@ const FAKE = `window.firebase = (function () {
 const LIB = { "react.production.min.js": CDN + "/react-18.3.1/package/umd/react.production.min.js", "react-dom.production.min.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.production.min.js",
   "prop-types.min.js": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "Recharts.js": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "babel.min.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js" };
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml" };
+const viaCentral = [], pedidosFin = [];
 const srv = http.createServer((q, r) => {
   const u = new URL(q.url, "http://x");
+  /* a Central repassa /ty/* para este site (central/netlify.toml): aqui o servidor de teste faz o mesmo */
+  if (u.pathname.startsWith("/ty/")) { if (u.pathname.startsWith("/ty/.netlify/")) viaCentral.push(u.pathname); u.pathname = u.pathname.slice(3); }
   if (u.pathname.startsWith("/.netlify/functions/")) { r.writeHead(200, { "content-type": "application/json" }); return r.end(u.pathname.endsWith("/financeiro") ? '{"papel":null}' : "{}"); }
   let rel = u.pathname === "/gestao" || u.pathname === "/treinador" ? "/index.html" : decodeURIComponent(u.pathname);
   if (rel.endsWith("/")) rel += "index.html";
@@ -75,7 +78,7 @@ const base = "http://localhost:" + srv.address().port;
   const erros = [];
   const abrir = async (papel, email, caminho, papelFin) => {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
-    if (papelFin) await ctx.route(/\/\.netlify\/functions\/financeiro/, (rota) => rota.fulfill({ contentType: "application/json", body: JSON.stringify({ papel: papelFin }) }));
+    if (papelFin) await ctx.route(/\/\.netlify\/functions\/financeiro/, (rota) => pedidosFin.push(rota.request().url()) && rota.fulfill({ contentType: "application/json", body: JSON.stringify({ papel: papelFin }) }));
     await ctx.addInitScript((f) => { window.__FAKE = f; try { localStorage.setItem("ql-onboarding-dispensado", "1"); } catch (e) { /* ok */ } }, { papel, email });
     await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => {
       const url = rota.request().url(), nome = url.split("?")[0].split("/").pop();
@@ -151,6 +154,31 @@ const base = "http://localhost:" + srv.address().port;
     if (capturas) await p.screenshot({ path: path.join(capturas, "painel-total-" + quem + ".png") });
     await p.close();
   }
+  /* dentro da Central (25/11/2026): o mesmo painel em /ty/gestao; as functions passam por /ty/.netlify/functions; links públicos
+     com o endereço do Team Yoda; volta para a Central */
+  pedidosFin.length = 0;
+  p = await abrir("treinador", "adm@teste.com", "/ty/gestao", "admin");
+  await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 }); await fechaNovidades(p); await p.waitForTimeout(600);
+  const atC = await p.locator("[data-atalho-gestao]").evaluateAll((l) => l.map((x) => x.getAttribute("data-atalho-gestao")));
+  assert(TODAS.concat(["cobranca"]).every((v) => atC.includes(v)), "na Central, o administrativo vê todas as telas: " + atC.join(","));
+  assert(pedidosFin.length && pedidosFin.every((x) => /\/ty\/\.netlify\/functions\/financeiro/.test(x)), "functions pela Central: " + pedidosFin.join(","));
+  assert.strictEqual(await p.evaluate(() => ORIGEM_PUBLICA), "https://teamyoda.com.br", "links públicos com o endereço do Team Yoda");
+  assert.strictEqual(await p.getAttribute("[data-voltar-central]", "href"), "/", "voltar para a Central");
+  assert(/Voltar para a Central/.test(await menu(p)), "menu com Voltar para a Central");
+  await p.goto(base + "/ty/gestao?aba=eventos"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
+  assert(!(await p.$("[data-gestao-inicio]")) && /Eventos/.test(await p.innerText("main")), "aviso da Central abre Eventos");
+  if (capturas) await p.screenshot({ path: path.join(capturas, "painel-na-central.png") });
+  await p.close();
+  /* fora da Central, os links seguem o endereço de onde o painel abriu */
+  p = await abrir("coordenador", "coord@teste.com", "/gestao");
+  await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 });
+  assert.strictEqual(await p.evaluate(() => ORIGEM_PUBLICA), base, "fora da Central, o próprio endereço");
+  assert(!(await p.$("[data-voltar-central]")), "sem Voltar para a Central fora dela");
+  await p.close();
+  const toml = fs.readFileSync(path.join(raiz, "..", "central", "netlify.toml"), "utf8");
+  assert(/from = "\/ty\/gestao"\s+to = "https:\/\/app\.39tennis\.com\.br\/gestao"\s+status = 200/.test(toml) && /from = "\/ty\/\*"\s+to = "https:\/\/app\.39tennis\.com\.br\/:splat"\s+status = 200/.test(toml), "Central repassa /ty/* ao Team Yoda");
+  assert(/const GESTAO_TY = "\/ty\/gestao"/.test(fs.readFileSync(path.join(raiz, "..", "central", "index.html"), "utf8")), "o atalho da Central abre a gestão dentro dela");
+
   /* no app, o administrativo continua sem a gestão */
   p = await abrir("treinador", "adm@teste.com", "/treinador", "admin");
   await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(800);

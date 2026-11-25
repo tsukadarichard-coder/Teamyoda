@@ -7,6 +7,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
+<script>
+/* Gestão dentro da Central (25/11/2026, "Precisa facilitar o acesso p mim e para o Adm"): o MESMO painel é servido também em
+   central-tsukada.netlify.app/ty/gestao (o Netlify da Central repassa /ty/* para este site). Lá o login é o mesmo da Central
+   (mesmo endereço, mesmo Firebase) e as functions passam por /ty/.netlify/functions/… */
+window.NA_CENTRAL = /^\/ty\//.test(location.pathname);
+if (window.NA_CENTRAL && window.fetch) {
+  var fetchOriginal = window.fetch.bind(window);
+  window.fetch = function (u, o) { if (typeof u === "string" && u.indexOf("/.netlify/functions/") === 0) u = "/ty" + u; return fetchOriginal(u, o); };
+}
+</script>
 <link rel="manifest" href="manifest.json" id="link-manifest">
 <meta name="theme-color" content="#103B32" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -367,7 +377,7 @@ if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
 
 /* Só pra habilitar "instalar como app" (beforeinstallprompt) no
    Chrome/Android — ver o componente InstalarApp mais abaixo. */
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && !window.NA_CENTRAL) navigator.serviceWorker.register("sw.js").catch(() => {}); /* na Central, o service worker é o da Central */
 </script>
 
 <script type="text/babel" data-presets="react">
@@ -10010,7 +10020,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
   const [vinculoId, setVinculoId] = useState("");
   const [auto, setAuto] = useState(() => { try { return localStorage.getItem("ql-ao-vivo-auto") !== "off"; } catch { return true; } });
   const tentouRef = useRef(false);
-  const url = aoVivo ? location.origin + "/scout/?l=" + aoVivo.token : "";
+  const url = aoVivo ? ORIGEM_PUBLICA + "/scout/?l=" + aoVivo.token : "";
   /* atletas do QuadraLab Competição que me vincularam como treinador: ligar o jogo a um deles faz o jogo aparecer sozinho no app dele e dos responsáveis */
   useEffect(() => {
     let vivo = true;
@@ -11617,7 +11627,7 @@ function LinkFamilia({ reg, aluno, alunos, setAlunos }) {
     let vivo = true;
     if (!token) { setUrl(""); return undefined; }
     organizacao().then((org) => {
-      if (vivo) setUrl(location.origin + "/scout/?org=" + encodeURIComponent(org || "") + "&id=" + encodeURIComponent(aluno.id) + "&j=" + encodeURIComponent(reg.id) + "&t=" + encodeURIComponent(token));
+      if (vivo) setUrl(ORIGEM_PUBLICA + "/scout/?org=" + encodeURIComponent(org || "") + "&id=" + encodeURIComponent(aluno.id) + "&j=" + encodeURIComponent(reg.id) + "&t=" + encodeURIComponent(token));
     });
     return () => { vivo = false; };
   }, [token, aluno.id, reg.id]);
@@ -15044,7 +15054,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         atualiza({ linkToken: chave });
       }
       const org = await organizacao();
-      const url = location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") +
+      const url = ORIGEM_PUBLICA + "/aluno.html?org=" + encodeURIComponent(org || "") +
         "&id=" + encodeURIComponent(aluno.id) + "&t=" + encodeURIComponent(chave);
       setLinkAluno(url);
       setLinkCopiado(false);
@@ -15091,7 +15101,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         setAlunos(alunos.map((a) => (a.id === membro.id ? { ...a, linkToken: chave } : a)));
       }
       const org = await organizacao();
-      const url = location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") +
+      const url = ORIGEM_PUBLICA + "/aluno.html?org=" + encodeURIComponent(org || "") +
         "&id=" + encodeURIComponent(membro.id) + "&t=" + encodeURIComponent(chave);
       setLinksMembros((l) => ({ ...l, [membro.id]: url }));
       setMembroCopiadoId(null);
@@ -16538,7 +16548,7 @@ function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAt
   useEffect(() => {
     (async () => {
       const org = await organizacao();
-      if (org) setLinkConvite(location.origin + "/solicitar-acesso.html?org=" + encodeURIComponent(org));
+      if (org) setLinkConvite(ORIGEM_PUBLICA + "/solicitar-acesso.html?org=" + encodeURIComponent(org));
     })();
   }, []);
 
@@ -17236,7 +17246,7 @@ function TelaQuadras({ quadras, setQuadras, orgAtual }) {
   const [linkCopiado, setLinkCopiado] = useState(false);
 
   const quadrasAtivas = quadras.filter((q) => q.ativa !== false);
-  const linkReserva = orgAtual ? location.origin + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
+  const linkReserva = orgAtual ? ORIGEM_PUBLICA + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
 
   async function copiarLink() {
     try { await navigator.clipboard.writeText(linkReserva); }
@@ -17365,7 +17375,7 @@ function TelaTorneios({ torneios, setTorneios, orgAtual }) {
   const [jogador2Novo, setJogador2Novo] = useState("");
   const [placar2Novo, setPlacar2Novo] = useState("");
 
-  const linkInscricao = orgAtual ? location.origin + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
+  const linkInscricao = orgAtual ? ORIGEM_PUBLICA + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
 
   function criarTorneio() {
     if (!nomeNovo.trim()) return;
@@ -17831,7 +17841,7 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
   const [custoDesc, setCustoDesc] = useState(""), [custoValor, setCustoValor] = useState("");
   const [baixando, setBaixando] = useState(false), [erroPlanilha, setErroPlanilha] = useState("");
 
-  const linkInscricao = orgAtual ? location.origin + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
+  const linkInscricao = orgAtual ? ORIGEM_PUBLICA + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
   const mudarEvento = (id, fn) => setEventos((lista) => lista.map((e) => (e.id === id ? fn(e) : e)));
   function removerEvento(id) {
     if (!confirm("Excluir este evento? As inscrições, os pagamentos marcados e os custos dele vão junto. Essa ação não pode ser desfeita.")) return;
@@ -21181,7 +21191,7 @@ function TelaGradeAulas({ alunos, setAlunos, turmas, setTurmas, quadras, bloquei
 
   const seriesAula = useMemo(() => agruparHorariosEntidades(alunos, turmas), [alunos, turmas]);
   const seriesBloqueio = useMemo(() => agruparBloqueiosEmSeries(bloqueiosAula), [bloqueiosAula]);
-  const linkApp = orgAtual ? location.origin + "/cliente.html?org=" + encodeURIComponent(orgAtual) : "";
+  const linkApp = orgAtual ? ORIGEM_PUBLICA + "/cliente.html?org=" + encodeURIComponent(orgAtual) : "";
   function nomeQuadraPor(id) { return (quadras || []).find((q) => q.id === id)?.nome || ""; }
 
   function cancelarFuturasDaSerie(tipo, origemId, dias, horaInicio) {
@@ -22435,7 +22445,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
     // cancelada"), porque ali o pedido é preservar o histórico visível.
     : quadrasExibidas.map((q) => ({ key: q.id, titulo: q.nome, blocos: compromissos.filter((b) => b.quadraId === q.id && !b.cancelada) }));
 
-  const linkReserva = orgAtual ? location.origin + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
+  const linkReserva = orgAtual ? ORIGEM_PUBLICA + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
   const [linkCopiado, setLinkCopiado] = useState(false);
   async function copiarLinkReserva() {
     try { await navigator.clipboard.writeText(linkReserva); } catch {}
@@ -23858,7 +23868,7 @@ async function linkPaginaAluno(aluno, setAlunos) {
   let chave = aluno.linkToken;
   if (!chave) { chave = MTY.tokenSeguro(); setAlunos((l) => l.map((a) => (a.id === aluno.id ? { ...a, linkToken: chave } : a))); }
   const org = await organizacao();
-  return location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") + "&id=" + encodeURIComponent(aluno.id) + "&t=" + encodeURIComponent(chave);
+  return ORIGEM_PUBLICA + "/aluno.html?org=" + encodeURIComponent(org || "") + "&id=" + encodeURIComponent(aluno.id) + "&t=" + encodeURIComponent(chave);
 }
 function promptObservacaoRelatorio(dados) {
   const nome = String(dados.nome || "o atleta").split(" ")[0], n = dados.numeros || {};
@@ -25623,7 +25633,7 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, so: "financeiro", t: "Acesso total ao painel de gestão", d: "O Richard e o administrativo agora veem todas as telas do painel de gestão (teamyoda.com.br/gestao, pela Central): Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
+  { novo: true, so: "financeiro", t: "Acesso total ao painel de gestão", d: "O painel de gestão agora abre dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu). O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
   { t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
   { t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
   { t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
@@ -25754,7 +25764,9 @@ function JanelaNovidades({ nomeApp, versao, itens, irPara }) {
    padrão de atendimento, financeiro/cobrança e equipe da organização), para a coordenação e o administrativo. No app dos
    professores (/treinador) essas telas saíram do menu; Agenda, Pendências do dia e o relatório de aulas do próprio professor
    (Agenda › Relatório de aulas) continuam lá. Os dados são os mesmos: nada mudou de lugar na nuvem. */
-const PAINEL_GESTAO = typeof location !== "undefined" && /^\/gestao\/?$/.test(location.pathname);
+const PAINEL_GESTAO = typeof location !== "undefined" && /^\/(ty\/)?gestao\/?$/.test(location.pathname);
+/* links públicos (inscrição, reservas, link do aluno…): no painel dentro da Central, o endereço é o do Team Yoda, não o da Central */
+const ORIGEM_PUBLICA = typeof window !== "undefined" && window.NA_CENTRAL ? "https://teamyoda.com.br" : (typeof location !== "undefined" ? location.origin : "");
 /* telas que só abrem no painel (o relatório de aulas fica nos dois: no app, cada professor vê o dele) */
 const ABAS_SO_PAINEL = new Set(["quadras", "grade-aulas", "clientes", "torneios", "eventos", "aulas-equipe", "atendimento", "financeiro", "cobranca", "equipe"]);
 const NAV_PRINCIPAL_TY = PAINEL_GESTAO ? [
@@ -25774,6 +25786,7 @@ function GestaoInicio({ itens, aoIr }) {
   };
   return (
     <div data-gestao-inicio>
+      {window.NA_CENTRAL && <a href="/" data-voltar-central style={{ ...prosa, fontSize: 13, color: C.grafite, textDecoration: "underline" }}>← Voltar para a Central</a>}
       <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Gestão da academia</h1>
       <p style={{ ...prosa, color: C.grafite, marginTop: 4, marginBottom: 16 }}>As telas de gestão do Team Yoda, separadas do app dos professores. Os dados são os mesmos do app.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
@@ -26731,7 +26744,7 @@ function TelaAcademiaDigital() {
   const cartao = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: 14, marginBottom: 10 };
   const nota = { ...prosa, fontSize: 12.5, color: C.grafite };
   const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "4px 0 8px" };
-  const link = (p) => location.origin + p;
+  const link = (p) => ORIGEM_PUBLICA + p;
 
   return (
     <div data-academia-digital>
@@ -26744,7 +26757,7 @@ function TelaAcademiaDigital() {
         <b>Pausada para os alunos (decisão do Richard em 16/11/2026).</b> Alunos e famílias veem um aviso e vão para a Área do aluno; a equipe continua entrando para preparar o conteúdo. Nada foi apagado.
       </p>
       <div className="flex flex-wrap gap-2 mb-3">
-        <a href="/digital/" target="_blank" rel="noopener" style={{ ...chip(false), textDecoration: "none" }}>Abrir a Academia Digital ↗</a>
+        <a href={ORIGEM_PUBLICA + "/digital/"} target="_blank" rel="noopener" style={{ ...chip(false), textDecoration: "none" }}>Abrir a Academia Digital ↗</a>
         <a href="/portal/" target="_blank" rel="noopener" style={{ ...chip(false), textDecoration: "none" }}>Página de vendas ↗</a>
         <button type="button" style={chip(false)} onClick={() => navigator.clipboard && navigator.clipboard.writeText(link("/portal/")).then(() => setAviso("Link da página de vendas copiado."))}>Copiar link da página de vendas</button>
       </div>
@@ -28958,7 +28971,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba, podeGestao, papelFin, abertoId, orgAtual]);
   const gruposNav = PAINEL_GESTAO ? [
-    { id: "gestao", label: "Gestão da academia", itens: itensGestao },
+    { id: "gestao", label: "Gestão da academia", itens: [...itensGestao, ...(window.NA_CENTRAL ? [{ v: "voltar-central", r: "← Voltar para a Central" }] : [])] },
     { id: "config", label: "Ajuda", itens: [{ v: "ajuda", r: "Ajuda" }] },
   ] : [
     { id: "treino", label: "Treino e análise", itens: [
@@ -28986,7 +28999,7 @@ function App() {
     const n = { ...gruposNavAbertos, [id]: !gruposNavAbertos[id] };
     setGruposNavSalvos(n); gravarPrefMenu(chaveMenu + ":grupos", n);
   }
-  function irNav(v) { setAba(v); setAbertoId(null); setManualAberto(false); if (painelNav) fecharPainelNav(false); }
+  function irNav(v) { if (v === "voltar-central") { window.location.href = "/"; return; } setAba(v); setAbertoId(null); setManualAberto(false); if (painelNav) fecharPainelNav(false); }
   const principalAtual = abertoId && aba === "alunos" ? NAV_PRINCIPAL_TY[1] : principalDaAba(aba);
   const maisAtivo = !principalAtual;
   const lateralVisivel = modoTela === "desktop";
@@ -29425,7 +29438,7 @@ function App() {
            <div data-gestao-sem-acesso>
              <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Painel de gestão</h1>
              <p style={{ ...prosa, marginTop: 6 }}>Este painel é da coordenação e do administrativo. Para as aulas, os jogadores e a agenda, use o app dos professores.</p>
-             <div className="mt-4"><Botao onClick={() => { window.location.href = "/treinador"; }}>Abrir o app dos professores</Botao></div>
+             <div className="mt-4"><Botao onClick={() => { window.location.href = ORIGEM_PUBLICA + "/treinador"; }}>Abrir o app dos professores</Botao></div>
            </div>)
          ) :
          aba === "gestao-inicio" ? (PAINEL_GESTAO ? <GestaoInicio itens={itensGestao} aoIr={irNav} /> : null) :
