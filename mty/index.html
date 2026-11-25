@@ -1539,12 +1539,12 @@ const CATEGORIAS_EXERCICIO = [
   { c: "AT", foco: "Característica agressiva desde a iniciação", quando: "Bloco geral e específico" },
   { c: "JA", foco: "Pontos e jogos com regra que força o tema", quando: "Bloco 5 de toda aula" },
 ];
+/* estrutura da sessão a partir de 25/11/2026 (pedido do Richard): aquecimento, técnica específica, parte geral, saque e devolução */
 const BLOCO_FAMILIAS = [
-  { bloco: "1 · Abertura com bola", familias: "CO · RT" },
-  { bloco: "2 · Início do ponto", familias: "IP (e PDS/PDD no alto rendimento)" },
-  { bloco: "3 · Parte geral", familias: "CO · RT · MV · AT · DT" },
-  { bloco: "4 · Técnica específica", familias: "Qualquer — definida pelo diagnóstico" },
-  { bloco: "5 · Jogo aplicado", familias: "JA" },
+  { bloco: "1 · Aquecimento", familias: "CO · MV · BR (dentro da quadra, pela idade)" },
+  { bloco: "2 · Técnica específica", familias: "TE (um golpe isolado, o golpe marcado na ficha)" },
+  { bloco: "3 · Parte geral", familias: "O que a aula do plano definiu: RT · MV · AT · DT · JA (com a tática)" },
+  { bloco: "4 · Saque e devolução", familias: "IP (e PDS/PDD no alto rendimento), em toda sessão" },
 ];
 
 /* ── Fichas de diagnóstico avançado (Séries D e I, Parte 4) ── */
@@ -25291,7 +25291,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-app-sem-gestao";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-sessao-quatro-partes";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -25300,7 +25300,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
+  { novo: true, t: "Sessão em quatro partes, com técnica específica", d: "Toda sessão de aula (individual, turma e alto rendimento) sai em quatro partes: 1 Aquecimento, só com o que se faz dentro da quadra e próprio para a idade; 2 Técnica específica, um golpe isolado, sem construção de jogada (família nova TE, com lançamento à mão, cesto parado ou cesto com deslocamento, para todos os golpes); 3 Parte geral, a aula do planejamento, com a tática; 4 Saque e devolução, em toda sessão. Na ficha, o campo Golpe da parte técnica (até 2 golpes, que se alternam). Na turma, marque a presença antes de gerar: a sessão é montada com quem veio, com um exercício por golpe e o nome de quem trabalha cada um. O planejamento não muda.", onde: "Sessão de hoje, sessão da turma e alto rendimento; ficha do aluno", aba: "alunos" },
+  { t: "O app não abre mais a gestão", d: "Os atalhos que levavam do app ao painel de gestão saíram: na Agenda, o menu Mais opções (link de reservas, quadras e horários recorrentes), o Bloqueio no + Agendar e o atalho para Horários recorrentes; no sino, as inscrições de torneio e de evento e os pedidos de cadastro. Tudo isso continua no painel de gestão, que a coordenação e o administrativo abrem pela Central. O aviso de inscrição nova no celular abre o app e diz para ver na gestão. No Android, o app instalado não abre mais o endereço do painel: o atalho da Central abre a gestão no navegador.", onde: "Agenda e sino de avisos", aba: "agenda" },
   { t: "Meu plano com o professor e as próximas aulas", d: "Quando o aluno abre o Meu plano (pela Área do aluno com o e-mail ou pelo link), aparecem o professor dele (e o de cada turma) e as próximas aulas dos 14 dias seguintes: individual, turma, reposição, aula experimental e alto rendimento, com dia, horário, quadra, professor e substituto. Aula cancelada aparece riscada com o motivo. Tudo sai da Agenda e dos horários fixos, sem nada novo para preencher.", onde: "Meu plano do aluno", aba: "alunos" },
   { t: "Agenda do professor sem dados da gestão", d: "Na Agenda do app dos professores, a locação de quadra aparece só como Quadra reservada, sem o nome e o telefone de quem alugou e sem cancelar a reserva; o + Agendar oferece aula individual, aula de turma e reposição (locação e bloqueio de quadra ficam com a gestão), e o menu com o link de reservas, a página pública, as quadras e os horários recorrentes saiu. A coordenação e a gestão continuam vendo tudo no painel teamyoda.com.br/gestao.", onde: "Agenda", aba: "agenda" },
   { t: "Eventos: opções de inscrição com valor, período de vários dias e destaque no topo do site", d: "Na criação do evento, em Opções de inscrição, cadastre por exemplo 1 semana, 2 semanas e Diária avulsa, cada uma com o seu valor: quem se inscreve no site escolhe uma e vê o valor ali mesmo (sem opções, aparece o valor único da inscrição). Na diária (marque valor por dia), a pessoa escolhe os dias úteis do período e vê o total; no painel aparecem os dias de cada inscrição e quantas crianças vêm em cada dia. Cada opção tem a caixa aparece no site: desmarcada, o cliente não vê a opção, que continua valendo para inscrição lançada no painel. O evento também tem o Último dia, para os que duram vários dias (o site mostra o período, como 9 a 18 de dezembro), e aparece logo no topo da página de entrada. No painel, cada inscrição mostra a opção escolhida, e o resumo, o em aberto, a mensagem do WhatsApp e a planilha usam o valor de cada opção.", onde: "teamyoda.com.br/gestao › Eventos", aba: "eventos" },

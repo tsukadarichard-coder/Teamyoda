@@ -65,7 +65,7 @@ window.__app = () => {
   let aceito = false; try { validarPlanoJSON(plano, ["A"], []); aceito = true; } catch (e) { aceito = e.message; }
   const sit = TODOS_EXERCICIOS().filter((e) => e.tl);
   return {
-    total: TODOS_EXERCICIOS().length, sit: sit.length, familias: Object.keys(FAM).length, temTE: !!FAM.TE, abas: NAV_MANUAL.map((t) => t.v),
+    total: TODOS_EXERCICIOS().length, sit: sit.length, familias: Object.keys(FAM).length, sitEmTE: sit.some((e) => e.f === "TE"), abas: NAV_MANUAL.map((t) => t.v),
     principios: PRINCIPIOS_MTY.length,
     promptA: promptPlanoEstruturado(aluno, 12, 2, [], null),
     promptV: promptPlanoEstruturado(crianca, 12, 2, [], null),
@@ -112,7 +112,8 @@ const srv = http.createServer((q, r) => {
   const a = await p.evaluate(() => window.__app());
   assert.strictEqual(a.total, 353 + 96, "catálogo antigo inteiro + 96");
   assert.strictEqual(a.sit, 96);
-  assert(!a.temTE && !a.abas.includes("tatico"), "sem família nem aba separada");
+  /* as situações ficam nas famílias que já existiam (a família TE de 25/11/2026 é a técnica específica, outro conteúdo) */
+  assert(!a.sitEmTE && !a.abas.includes("tatico"), "sem família nem aba separada");
   assert(["Construção de ponto", "Rede e finalização", "Saque e devolução"].every((c) => a.conceitos.includes(c)), "situações caem nos conceitos já existentes: " + a.conceitos);
   assert.strictEqual(a.aceito, true, "plano com códigos novos aceito: " + a.aceito);
   assert.deepStrictEqual(a.refs.slice(0, 2), ["catalogo:familia-DT", "taticas:situacao-jogo"]);
