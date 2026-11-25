@@ -16,10 +16,17 @@ const db = { collection: (n) => colRef(n), runTransaction: async (fn) => fn({ ge
 const admin = { firestore: () => db, auth: () => ({ verifyIdToken: async (t) => { if (t === "tk-coord") return { uid: "c1", orgId: "team-yoda", role: "coordenador" }; if (t === "tk-aluno") return { uid: "a1" }; throw new Error("x"); } }) };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
 const avisos = [];
-require.cache[require.resolve(fx + "_push.js")] = { id: "p", filename: "p", loaded: true, exports: { avisar: async (a, filtro, aviso) => { avisos.push({ filtro, aviso }); } } };
+require.cache[require.resolve(fx + "_push.js")] = { id: "p", filename: "p", loaded: true, exports: { COLECAO: "pushInscricoes", avisar: async (a, filtro, aviso) => { avisos.push({ filtro, aviso }); } } };
 const F = require(fx + "inscricao-torneio-evento.js");
 const chamar = async (metodo, corpo, qs, tk) => { const r = await F.handler({ httpMethod: metodo, headers: tk ? { authorization: "Bearer " + tk } : {}, body: corpo ? JSON.stringify(corpo) : null, queryStringParameters: qs || {} }); let b; try { b = JSON.parse(r.body); } catch (e) { b = r.body; } return { status: r.statusCode, corpo: b, r }; };
 const ano = new Date().getFullYear(), dataEv = ano + "-12-13", ontem = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
+/* Central (25/11/2026): o Richard e o administrativo recebem a inscrição nova; uma terceira conta desligou esse tipo de aviso e não recebe */
+store["pushInscricoes/r1"] = { app: "central", uid: "u-ric", papel: "richard" };
+store["pushInscricoes/a1"] = { app: "central", uid: "u-adm", papel: "administrativo" };
+store["pushInscricoes/a2"] = { app: "central", uid: "u-adm2", papel: "administrativo" };
+store["centralAvisos/u-ric"] = { silencio: { ativo: false } };
+store["centralAvisos/u-adm"] = { silencio: { ativo: false } };
+store["centralAvisos/u-adm2"] = { tipos: { inscricoes: false }, silencio: { ativo: false } };
 store["orgs/team-yoda/dados/mty:eventos:v1"] = { value: JSON.stringify([
   { id: "ev1", nome: "Camp de fim de ano", data: dataEv, dataFim: ano + "-12-22", horaInicio: "09:00", local: "Cooper Tênis", tipo: "clinica", descricao: "Tênis e brincadeiras", vagas: 3, ativo: true, site: true,
     publico: "Crianças de 8 a 12 anos", idadeMin: 8, idadeMax: 12, valor: 150, cartaz: "/x.jpg", custos: [{ id: "c", descricao: "Camisetas", valor: 300 }],
@@ -65,7 +72,9 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
     ["Lia Souza", nasc(10), "maria@exemplo.com", "sim", "Alergia a amendoim", "confirmado", "cliente", false, "pendente"]);
   assert(c.autorizacaoEm && c.criancaIdade >= 9 && c.criancaIdade <= 10, "autorização com data e idade no evento");
   assert.deepStrictEqual([c.opcaoId, c.opcaoNome, c.valor], ["s2", "2 semanas", 800], "opção e valor guardados");
-  assert.strictEqual(avisos.length, 1); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
+  assert.strictEqual(avisos.length, 3); assert.deepStrictEqual(avisos[0].filtro, { app: "treinador", orgId: "team-yoda", papel: "coordenador" });
+  assert.deepStrictEqual(avisos.slice(1).map((a) => a.filtro.app + ":" + a.filtro.uid).sort(), ["central:u-adm", "central:u-ric"], "Central: Richard e administrativo (quem desligou não recebe)");
+  assert(avisos[1].aviso.url === "https://teamyoda.com.br/gestao?aba=eventos" && /Lia Souza/.test(avisos[1].aviso.corpo), "o aviso da Central abre Gestão › Eventos");
   assert(/Camp de fim de ano/.test(avisos[0].aviso.titulo) && /Lia Souza/.test(avisos[0].aviso.corpo) && avisos[0].aviso.url === "/" && /pela Central/.test(avisos[0].aviso.corpo), "o aviso não abre a gestão pelo app");
   /* lotou: a próxima vai para a lista de espera */
   assert.strictEqual((await chamar("POST", { ...base, opcaoId: "s4", criancaNome: "Lia Souza", criancaNascimento: nasc(10), autorizacao: true })).status, 400, "opção fora do site não vale no site");
@@ -79,7 +88,7 @@ const uteis = (a, b) => { const o = []; for (let d = new Date(a + "T12:00:00Z");
   assert.deepStrictEqual([rui.opcaoNome, rui.dias, rui.valor], ["Diária avulsa", [diasEv[0], diasEv[2]], 200], "2 dias × R$ 100");
   r = await chamar("POST", { ...base, nomeContato: "João", opcaoId: "s1", criancaNome: "Theo", criancaNascimento: nasc(12), autorizacao: true });
   assert.deepStrictEqual([r.status, r.corpo.status], [200, "espera"]);
-  assert(/lista de espera/.test(avisos[avisos.length - 1].aviso.corpo));
+  assert(/lista de espera/.test(avisos[avisos.length - 1].aviso.corpo) && avisos.filter((a) => a.filtro.app === "treinador").pop().aviso.corpo.includes("lista de espera"));
   /* prazo vencido e evento sem faixa de idade (adulto) */
   assert.strictEqual((await chamar("POST", { ...base, eventoId: "ev2", criancaNome: "Lia", criancaNascimento: nasc(10), autorizacao: true })).status, 404, "fora do prazo");
   r = await chamar("POST", { org: "team-yoda", tipo: "evento", eventoId: "ev3", nomeContato: "Carlos", telefoneContato: "11 97777-6666" });

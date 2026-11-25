@@ -73,8 +73,9 @@ const base = "http://localhost:" + srv.address().port;
 (async () => {
   const b = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [];
-  const abrir = async (papel, email, caminho) => {
+  const abrir = async (papel, email, caminho, papelFin) => {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
+    if (papelFin) await ctx.route(/\/\.netlify\/functions\/financeiro/, (rota) => rota.fulfill({ contentType: "application/json", body: JSON.stringify({ papel: papelFin }) }));
     await ctx.addInitScript((f) => { window.__FAKE = f; try { localStorage.setItem("ql-onboarding-dispensado", "1"); } catch (e) { /* ok */ } }, { papel, email });
     await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => {
       const url = rota.request().url(), nome = url.split("?")[0].split("/").pop();
@@ -133,6 +134,28 @@ const base = "http://localhost:" + srv.address().port;
   await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(800);
   m = await menu(p);
   assert(!/Financeiro/.test(m) && !/Padrão de atendimento/.test(m), "Financeiro fora do app:\n" + m);
+  await p.close();
+
+  /* 3b. acesso total (25/11/2026): o Richard e o administrativo, com conta de professor, veem todas as telas do painel */
+  const TODAS = ["quadras", "grade-aulas", "clientes", "torneios", "eventos", "aulas-equipe", "relatorio", "atendimento", "equipe"];
+  for (const [quem, email, fin, propria] of [["dono", dono, null, "financeiro"], ["administrativo", "adm@teste.com", "admin", "cobranca"]]) {
+    p = await abrir("treinador", email, "/gestao", fin);
+    await p.waitForSelector("[data-gestao-inicio]", { timeout: 120000 }); await fechaNovidades(p); await p.waitForTimeout(600);
+    const at = await p.locator("[data-atalho-gestao]").evaluateAll((l) => l.map((x) => x.getAttribute("data-atalho-gestao")));
+    assert(TODAS.concat([propria]).every((v) => at.includes(v)), quem + " vê todas as telas: " + at.join(","));
+    assert(quem === "dono" ? !at.includes("cobranca") : !at.includes("financeiro"), quem + ": Financeiro só do Richard; Cobrança do administrativo");
+    await p.goto(base + "/gestao?aba=eventos"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
+    assert(!(await p.$("[data-gestao-inicio]")) && /Eventos/.test(await p.innerText("main")), quem + " abre Eventos");
+    await p.goto(base + "/gestao?aba=equipe"); await p.waitForSelector("[data-menu-lateral]", { timeout: 60000 }); await p.waitForTimeout(800);
+    assert(!(await p.$("[data-gestao-inicio]")), quem + " abre Equipe da organização");
+    if (capturas) await p.screenshot({ path: path.join(capturas, "painel-total-" + quem + ".png") });
+    await p.close();
+  }
+  /* no app, o administrativo continua sem a gestão */
+  p = await abrir("treinador", "adm@teste.com", "/treinador", "admin");
+  await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(800);
+  m = await menu(p);
+  assert(!/Gestão da academia|Equipe da organização|Eventos|Quadras/.test(m), "app do administrativo sem gestão:\n" + m);
   await p.close();
 
   /* 4. professor no painel */

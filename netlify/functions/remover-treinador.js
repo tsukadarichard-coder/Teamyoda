@@ -6,6 +6,7 @@
    removido, o que já basta pra ele sumir de listaProfessores() e parar
    de conseguir ler/escrever os dados desta academia (as regras do
    Firestore checam orgId/role da claim). */
+const { podeGerirEquipe } = require("./_gestao-acesso");
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -22,7 +23,7 @@ exports.handler = async function (event) {
   } catch (e) {
     return resposta(401, { erro: "Login inválido ou expirado." });
   }
-  if (!claims.orgId || claims.role !== "coordenador") {
+  if (!(await podeGerirEquipe(claims))) {
     return resposta(403, { erro: "Só o coordenador da academia pode remover treinadores." });
   }
 
