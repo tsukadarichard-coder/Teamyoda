@@ -49,6 +49,7 @@ function atrasado(venc, mes, hoje) {
 }
 
 function calcularMes(dados, config, mes, hoje) {
+  QA.definirMarco((dados && dados.marco) || ""); /* marco zero da academia (26/11/2026): aulas de antes não contam */
   dados = dados || {}; config = config || {}; hoje = hoje || hojeBR();
   const cobranca = config.cobranca || {}, cob = (id) => cobranca[id] || {};
   const alunos = dados.alunos || [], turmas = dados.turmas || [], doMes = (config.meses || {})[mes] || {};

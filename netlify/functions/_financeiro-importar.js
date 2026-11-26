@@ -162,7 +162,7 @@ function alunoNovo(id, nome) {
 
 function planejar(planilha, estado, opcoes) {
   opcoes = opcoes || {};
-  const inicio = opcoes.inicio || "2026-11";
+  const inicio = opcoes.inicio || "2026-12"; /* marco zero do Team Yoda (26/11/2026) */
   let seq = 0;
   const novoId = opcoes.id || ((p) => p + Date.now().toString(36) + (++seq).toString(36));
   const P = { alunos: [], turmas: [], cobranca: [], abertos: [], professores: [], despesas: [] };

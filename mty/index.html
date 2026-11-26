@@ -15284,7 +15284,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     if (!proximaAula || !ocorrencias) return false;
     const hojeOc = new Date().toISOString().slice(0, 10);
     return ocorrencias.some((o) => o.origemTipo === (eTurma ? "turma" : "individual") && o.origemId === entidade.id
-      && o.status === "agendada" && o.data < hojeOc);
+      && o.status === "agendada" && o.data < hojeOc && depoisDoMarco(o.data));
   })();
 
   return (
@@ -21752,7 +21752,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
   const pendencias = [];
   alunosVistos.forEach((a) => (a.pedidosReposicao || []).filter((p) => p.status === "pendente").forEach((p) => pendencias.push({ k: "rep" + a.id + (p.id || p.em || ""), t: (a.nome || "Jogador") + " pediu reposição", d: "Responder o pedido", f: () => irPara(a.id) })));
   const registrosCaderno = QLAulasMes.indiceRegistros(alunos, turmas);
-  (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hojeISO && !registrosCaderno.has(QLAulasMes.chaveDaOcorrencia(o)) && (o.origemId ? idsVistos.has(o.origemId) : meus(o.professorUid)))
+  (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hojeISO && depoisDoMarco(o.data) && !registrosCaderno.has(QLAulasMes.chaveDaOcorrencia(o)) && (o.origemId ? idsVistos.has(o.origemId) : meus(o.professorUid)))
     .sort((x, y) => (y.data + y.horaInicio).localeCompare(x.data + x.horaInicio))
     .forEach((o) => pendencias.push({ k: "sf" + o.id, t: tituloAula(o) + " · " + o.data.split("-").reverse().slice(0, 2).join("/") + (o.horaInicio ? " " + o.horaInicio : ""), d: "Aula sem registro (realizada, falta ou cancelada?)", f: () => aoAbrirAgendaEm(o.data) }));
   turmasVistas.forEach((t) => (t.pendencias || []).filter((p) => !p.resolvida).forEach((p, i) => pendencias.push({ k: "tp" + t.id + i, t: t.nome + (p.data ? " · " + p.data : ""), d: p.motivo || "Pendência da turma", f: () => aoAbrirTurma(t.id) })));
@@ -25700,7 +25700,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-partes";
+const NOVIDADES_TY_VERSAO = "ty-2026-12-marco-zero";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
@@ -25709,7 +25709,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Jogadores voltaram a salvar", d: "A lista de jogadores da academia tinha chegado ao limite de 1 MB que a nuvem aceita num arquivo só, e por isso o cadastro de jogador novo e as mudanças nas fichas, planos e registros de aula deixaram de ser salvos. Agora a lista é guardada em partes e não tem mais esse limite. Se alguma aula ou ficha dos últimos dias não aparece, registre de novo.", onde: "Jogadores", aba: "alunos" },
+  { novo: true, t: "Marco zero em 1º de dezembro", d: "A partir de 1º de dezembro de 2026 o Team Yoda roda tudo pelo app, e a contagem começa do zero: aulas do mês, faltas, canceladas, aulas sem registro, reposições e o fechamento para a cobrança e o pagamento dos professores contam só de 1º de dezembro em diante, sempre pelo mês (o planejamento segue como está, em paralelo). As reposições de antes foram zeradas: créditos ainda não usados e pedidos pendentes saem da lista (ficam guardados, nada foi apagado); reposição que já estava marcada na Agenda continua valendo. A agenda, os registros e os planejamentos de antes continuam guardados.", onde: "Agenda, Relatório de aulas e reposições", aba: "agenda" },
+  { t: "Jogadores voltaram a salvar", d: "A lista de jogadores da academia tinha chegado ao limite de 1 MB que a nuvem aceita num arquivo só, e por isso o cadastro de jogador novo e as mudanças nas fichas, planos e registros de aula deixaram de ser salvos. Agora a lista é guardada em partes e não tem mais esse limite. Se alguma aula ou ficha dos últimos dias não aparece, registre de novo.", onde: "Jogadores", aba: "alunos" },
   { t: "Aviso quando algo não salva na nuvem", d: "Se a nuvem recusar uma mudança nos jogadores ou nas turmas (por exemplo, o cadastro de um jogador novo), aparece um aviso vermelho no topo dizendo o que não foi salvo e por quê, com o botão Tentar de novo. Antes isso acontecia em silêncio e o jogador sumia ao abrir o app de novo. O cadastro de jogador novo no Team Yoda também não é mais barrado por limite de plano nem por data de licença.", onde: "Topo do app", aba: "alunos" },
   { so: "financeiro", t: "Gestão só na Central, com acesso total", d: "O painel de gestão do Team Yoda agora fica só dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu); teamyoda.com.br/gestao leva para lá, e a coordenação não entra mais na gestão. O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
   { t: "Ficha rápida, aba Avaliação e Montar turmas", d: "Novo jogador agora abre a ficha rápida: uma tela só com nome, nascimento, WhatsApp, estágio, nível rápido (Começando, Intermediário ou Avançado, que vira o nível Y), objetivo, backhand, golpe da parte técnica, professor, onde treina e aulas por semana. Ao salvar, a IA gera o plano individual para você revisar. O resto vai para a aba Avaliação do aluno, preenchida com o tempo: avaliação técnica por golpe, critérios, perfil de jogo, rotina, físico e contexto, com o quanto a ficha está completa e uma sugestão do que observar na preparação da aula. Em Turmas, Montar turmas sugere grupos com quem ainda não está em turma (mesmo estágio, nível e idade parecidos) e cria a turma com o plano por IA. No fim do ciclo, o próximo plano passa a levar também os registros das aulas e as conquistas, com um resumo do ciclo antes de gerar. A ficha completa de 5 etapas continua disponível.", onde: "Jogadores › Novo jogador; aluno › Avaliação; Turmas › Montar turmas; Planejamento", aba: "alunos" },
@@ -26481,7 +26482,7 @@ function TelaPendencias({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
     if (o.origemTipo === "turma") { const t = (turmas || []).find((x) => x.id === o.origemId); return t ? (t.membros || []).map((id) => alunoPorId.get(id)).filter(Boolean) : []; }
     const a = alunoPorId.get(o.origemId); return a ? [a] : [];
   }
-  const semFechar = (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hoje);
+  const semFechar = (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hoje && depoisDoMarco(o.data));
 
   const pedidosReposicao = [];
   (alunos || []).forEach((a) => (a.pedidosReposicao || []).filter((p) => p.status === "pendente").forEach((p) => pedidosReposicao.push({ aluno: a, pedido: p })));
@@ -26666,6 +26667,10 @@ function TelaPendencias({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
    um aviso para passar a usar teamyoda.com.br/treinador. Só aparece quando o domínio novo já responde (a imagem de teste carrega),
    então não mostra nada enquanto o DNS não estiver pronto. "Agora não" esconde nesta sessão; "Já mudei" esconde de vez. */
 const DOMINIO_TY = "teamyoda.com.br";
+/* marco zero da academia (26/11/2026): definido pela academia da conta (QLAulasMes.marcoDe); aulas "sem registro" de antes não
+   cobram mais nada. A contagem do mês e as reposições usam o mesmo marco dentro do QLAulasMes. */
+let MARCO_ZERO_APP = "";
+function depoisDoMarco(d) { return !MARCO_ZERO_APP || String(d || "") >= MARCO_ZERO_APP; }
 /* aviso de gravação que não chegou à nuvem (26/11/2026) e de lista de jogadores perto do limite do documento (1 MiB) */
 const NOMES_LISTA = { "mty:alunos:v2": "jogadores", "mty:turmas:v1": "turmas", "mty:eventos:v1": "eventos" };
 function AvisoNuvem({ erro, bytesAlunos, veTamanho, tentar }) {
@@ -28377,7 +28382,7 @@ function avisosDoProfessorPopup({ uid, alunos, turmas, ocorrencias, membrosForma
   const minha = (o) => o.professorUid === uid || o.professorAuxiliarUid === uid || o.substitutoUid === uid;
   const titulo = (o) => o.origemTipo === "turma" ? ((turmas || []).find((t) => t.id === o.origemId) || {}).nome || "Turma"
     : o.origemTipo === "individual" ? ((alunos || []).find((a) => a.id === o.origemId) || {}).nome || "Aula individual" : "Aula";
-  const emAberto = (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hoje && minha(o))
+  const emAberto = (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hoje && depoisDoMarco(o.data) && minha(o))
     .sort((a, b) => b.data.localeCompare(a.data) || (a.horaInicio || "").localeCompare(b.horaInicio || "")).map((o) => ({ id: o.id, data: o.data, hora: o.horaInicio, titulo: titulo(o) }));
   const deHoje = (ocorrencias || []).filter((o) => o.data === hoje).concat(gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], hoje, hoje, []));
   const aDar = deHoje.filter((o) => o.status === "agendada" && minha(o) && (o.horaFim || o.horaInicio || "99:99") >= hora)
@@ -29014,6 +29019,16 @@ function App() {
     ? alunos
     : alunos.filter((a) => !a.professorUid || a.professorUid === uidAtual);
 
+  /* marco zero (26/11/2026): a contagem e as reposições da academia começam no marco; a partir do dia, as reposições de antes
+     são zeradas nos dados (créditos não usados → cancelado; pedidos pendentes → arquivado; nada apagado) */
+  MARCO_ZERO_APP = (window.QLAulasMes && orgAtual && window.QLAulasMes.marcoVigente(orgAtual, window.QLAulasMes.hojeSP())) || "";
+  if (window.QLAulasMes) window.QLAulasMes.definirMarco(MARCO_ZERO_APP);
+  useEffect(() => {
+    if (!MARCO_ZERO_APP || carregando || !prontoRef.current.alunos || !window.QLAulasMes) return;
+    const r = window.QLAulasMes.aplicarMarcoZero(alunos, MARCO_ZERO_APP, window.QLAulasMes.hojeSP(), new Date().toISOString());
+    if (r.mudou) setAlunos(r.alunos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgAtual, carregando, alunos]);
   /* 26/11/2026: o Team Yoda é a academia da casa — limite de jogadores e data de licença não barram cadastro novo */
   const academiaDaCasa = orgAtual === "team-yoda";
   const limitePlano = academiaDaCasa ? null : limiteDeAlunos(planoAtual);

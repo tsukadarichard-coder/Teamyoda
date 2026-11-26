@@ -20,6 +20,7 @@
    POST { acao: "acesso", admins: [e-mails] }           → (dono) quem é da parte administrativa
    POST { acao: "importar", planilha, simular }         → (dono) migração da planilha (Let's Play/Airtable); simular só mostra o relatório */
 const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
+const QA_MARCO = require("./_aulas-mes"); // marco zero (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const F = require("./_financeiro-calc");
 const IMP = require("./_financeiro-importar");
@@ -69,6 +70,7 @@ async function lerAcademia(org) {
   nomes.forEach((k, i) => { let v = []; if (snaps[i].exists) { try { v = JSON.parse(snaps[i].data().value || "[]"); } catch (e) { v = []; } } dados[k] = Array.isArray(v) ? v : []; });
   /* jogadores pela lista em partes (26/11/2026); a v2 só vale enquanto a v3 não existe */
   try { dados.alunos = await LA.lerAlunos(base); } catch (e) { /* fica a leitura de cima */ }
+  dados.marco = QA_MARCO.marcoVigente(org, QA_MARCO.hojeSP()); /* marco zero da academia (26/11/2026), usado pelo calcularMes */
   dados.professores = [];
   if (sols) sols.forEach((d) => { const x = d.data(); dados.professores.push({ uid: d.id, nome: x.nome || x.email || "Sem nome", email: x.email || "" }); });
   return { dados, config: cfg.exists ? (cfg.data().config || {}) : {} };
@@ -124,8 +126,8 @@ async function handleGetAdmin(event) {
 
 async function handleGet(event) {
   const q = event.queryStringParameters || {}, mes = mesValido(q.mes) ? q.mes : mesAtual();
-  /* o acompanhamento começa em FINANCEIRO_INICIO (novembro de 2026): antes disso não há o que comparar */
-  const inicio = process.env.FINANCEIRO_INICIO || "2026-11";
+  /* o acompanhamento começa em FINANCEIRO_INICIO (dezembro de 2026, marco zero do Team Yoda): antes disso não há o que comparar */
+  const inicio = process.env.FINANCEIRO_INICIO || "2026-12";
   const meses = F.mesesAte(mes, 6).filter((m) => m >= inicio);
   if (!meses.length) meses.push(mes);
   const academias = await Promise.all(ACADEMIAS.map(async (a) => {
@@ -238,7 +240,7 @@ async function handleImportar(corpo, claims) {
   if (JSON.stringify(corpo.planilha || {}).length > 2500000) throw new ErroPublico(413, "Planilha grande demais. Mande por partes.");
   const planilha = IMP.lerPlanilha(corpo.planilha && corpo.planilha.abas ? corpo.planilha.abas : {});
   Object.assign(planilha, ...["alunos", "turmas", "cobranca", "abertos", "professores", "despesas"].filter((k) => Array.isArray((corpo.planilha || {})[k])).map((k) => ({ [k]: planilha[k].concat(corpo.planilha[k]) })));
-  const inicio = process.env.FINANCEIRO_INICIO || "2026-11";
+  const inicio = process.env.FINANCEIRO_INICIO || "2026-12"; /* marco zero: em aberto de antes vira pendência */
   const fs = admin.firestore();
   const profs = {};
   await Promise.all(ACADEMIAS.map(async (a) => {

@@ -38,6 +38,7 @@ async function lerFontes(ctx) {
   const ler = ctx.lerAcademia || require("./financeiro")._lerAcademia;
   const { dados, config } = await ler("team-yoda");
   const alunos = dados.alunos || [], turmas = dados.turmas || [];
+  QA.definirMarco(QA.marcoVigente("team-yoda", hoje)); /* marco zero (26/11/2026): faltas, aulas sem registro e reposições contam a partir dele */
   const desde = AT.somaDias(hoje, -(AT.LIMITES.janelaDias - 1));
   let aulas = [];
   try { aulas = QA.aulasDoPeriodo({ ocorrencias: dados.ocorrencias || [], alunos, turmas, inicio: desde, fim: hoje, hoje, extras: [] }); } catch (e) { aulas = []; }
