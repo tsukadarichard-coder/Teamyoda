@@ -65,6 +65,7 @@ const servidor = http.createServer(async (req, res) => {
   if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(""); }
   res.writeHead(200, { "content-type": f.endsWith(".html") ? "text/html; charset=utf-8" : f.endsWith(".css") ? "text/css" : "text/javascript" }); res.end(fs.readFileSync(f));
 });
+const revelarAbas = (pg) => pg.evaluate(() => document.querySelectorAll("[data-secao]").forEach((x) => { x.hidden = false; })); /* painel do aluno em abas (26/11/2026): os testes leem todas */
 (async () => {
   await new Promise((r) => servidor.listen(0, r)); const base = "http://localhost:" + servidor.address().port;
   const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
@@ -134,7 +135,7 @@ const servidor = http.createServer(async (req, res) => {
 
   /* página do aluno: o publicado aparece; o rascunho não; "Gerar relatório" automático */
   dados["mty:alunos:v2"] = { value: JSON.stringify((await lista()).map((a) => ({ ...a, linkToken: a.linkToken || "x" + a.id }))) };
-  await p.goto(base + "/aluno.html?org=org1&id=j1&t=tok123"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { timeout: 20000 });
+  await p.goto(base + "/aluno.html?org=org1&id=j1&t=tok123#evolucao"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { state: "attached", timeout: 20000 }); await revelarAbas(p);
   t = await p.locator('[data-painel="relatorios-atleta"]').innerText();
   assert(/Relatórios do treinador/.test(t) && /Copa Verão/.test(t) && /por Richard/.test(t), "relatório publicado na página do aluno");
   await p.click("[data-rel-ver]"); await p.waitForSelector('[data-painel="relatorios-atleta"] .rel-obs');
@@ -142,7 +143,7 @@ const servidor = http.createServer(async (req, res) => {
   await p.selectOption("[data-gerar-periodo]", "tudo"); await p.click("[data-gerar-rel]"); await p.waitForSelector("[data-relatorio-gerado]");
   assert(/sem a observação do treinador/.test(await p.locator("[data-relatorio-gerado]").innerText()), "resumo automático identificado");
   await cap("equipe-03-aluno");
-  await p.goto(base + "/aluno.html?org=org1&id=j2&t=xj2"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { timeout: 20000 });
+  await p.goto(base + "/aluno.html?org=org1&id=j2&t=xj2#evolucao"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { state: "attached", timeout: 20000 }); await revelarAbas(p);
   assert(!/Rascunho da Ana/.test(await p.evaluate(() => document.body.innerText)), "rascunho não aparece para o aluno");
 
   /* excluir a equipe: o auxiliar não pode; o coordenador exclui (com confirmação) e os relatórios ficam na ficha do atleta */

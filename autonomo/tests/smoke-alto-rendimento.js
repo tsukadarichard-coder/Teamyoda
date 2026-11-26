@@ -342,7 +342,7 @@ const base = "http://localhost:" + srv.address().port;
   console.log("  A2 · turmas: montar, editar, sessão da turma, presença; torneio editado com início e término");
 
   /* ── B · Meu plano do atleta ── */
-  await p.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA");
+  await p.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA#plano"); /* painel do aluno em abas (26/11/2026): o alto rendimento fica na aba Plano */
   await p.waitForSelector("[data-alto-rendimento]", { timeout: 20000 });
   let t = await p.locator("[data-alto-rendimento]").innerText();
   assert(/Em torneio: Copa Sul/.test(t) && /Carga da semana: 0 UA/.test(t), t);

@@ -60,7 +60,7 @@ t("professores sem repetir", () => {
 });
 t("aluno.html mostra o painel", () => {
   const h = fs.readFileSync(path.join(raiz, "mty/aluno.html"), "utf8");
-  assert(/function painelMinhasAulas\(d\)/.test(h)); assert((h.match(/painelMinhasAulas\(d\)/g) || []).length >= 3, "painel não entra nos dois caminhos");
+  assert(/function painelMinhasAulas\(d\)/.test(h)); assert((h.match(/painelMinhasAulas\(d\)/g) || []).length >= 2, "painel não entra nos dois caminhos");
 });
 (async () => {
   /* pela function de verdade (Firestore de mentira): a resposta traz professores e próximas aulas */

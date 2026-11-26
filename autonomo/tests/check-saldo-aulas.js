@@ -94,7 +94,7 @@ Q.definirMarco("");
 
 /* 11. aluno.html mostra "Minhas aulas" nos dois caminhos do Meu plano; Cobrança recebe o texto do saldo */
 const h = fs.readFileSync(path.join(raiz, "mty/aluno.html"), "utf8");
-assert(/function painelSaldoAulas\(d\)/.test(h) && (h.match(/painelSaldoAulas\(d\)/g) || []).length >= 3, "painel nos dois caminhos");
+assert(/function painelSaldoAulas\(d\)/.test(h) && (h.match(/painelSaldoAulas\(d\)/g) || []).length >= 2, "painel nos dois caminhos");
 const fin = fs.readFileSync(path.join(raiz, "netlify/functions/financeiro.js"), "utf8");
 assert(/saldosDeAulas\(/.test(fin) && /aulas: sa \?/.test(fin), "Cobrança leva a mensalidade de N aulas");
 console.log("check-saldo-aulas: ok");

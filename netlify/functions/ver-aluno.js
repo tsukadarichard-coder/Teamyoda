@@ -255,7 +255,7 @@ async function responderGet(org, id, q, ctx) {
   /* análises de movimento, jogos com scout e o que mais o treinador registrou: tudo o que é do jogador vai no link */
   const extras = await conteudoDoAluno(org, id, aluno);
   /* próximas aulas (14 dias) e professores: Agenda + horários fixos + alto rendimento; sem os dados, o resto da página segue */
-  let proximasAulas = [], professores = [], saldoAulas = null;
+  let proximasAulas = [], professores = [], saldoAulas = null, historicoAulas = null;
   try {
     const [docOc, docAr, docQ] = await Promise.all([lerDado(org, "mty:ocorrencias:v1"), lerDado(org, "mty:arTurmas:v1"), lerDado(org, "mty:quadras:v1")]);
     const ocorrencias = docOc ? lerJSON(docOc.value, []) : [], arTurmas = docAr ? lerJSON(docAr.value, []) : [], quadras = docQ ? lerJSON(docQ.value, []) : [];
@@ -263,6 +263,7 @@ async function responderGet(org, id, q, ctx) {
     proximasAulas = proximasAulasDoAluno({ aluno, turmasDoAluno, ocorrencias: Array.isArray(ocorrencias) ? ocorrencias : [], arTurmas: Array.isArray(arTurmas) ? arTurmas : [], quadras: Array.isArray(quadras) ? quadras : [], hoje: hojeSP, dias: 14 });
     professores = professoresDoAluno(aluno, turmasDoAluno, Array.isArray(arTurmas) ? arTurmas : []);
     saldoAulas = saldoAulasDoAluno({ org, aluno, turmasDoAluno, ocorrencias: Array.isArray(ocorrencias) ? ocorrencias : [], hoje: hojeSP });
+    historicoAulas = historicoAulasDoAluno({ org, aluno, turmasDoAluno, ocorrencias: Array.isArray(ocorrencias) ? ocorrencias : [], hoje: hojeSP });
   } catch (e) { proximasAulas = []; professores = professoresDoAluno(aluno, turmasDoAluno, []); }
   const planosEquipe = await planosEquipeDoAluno(org, id).catch(() => []);
 
@@ -278,6 +279,7 @@ async function responderGet(org, id, q, ctx) {
     professores,
     proximasAulas,
     saldoAulas,
+    historicoAulas,
     nivel: aluno.nivel || null,
     /* false só quando o nível veio de um atalho que pula o checklist de
        critérios observados em quadra (sugestão por IA aplicada direto —
@@ -441,6 +443,28 @@ function saldoAulasDoAluno({ org, aluno, turmasDoAluno, ocorrencias, hoje }) {
   if (!s) return null;
   return { pagasMes: s.pagasMes, desde: s.desde, feitas: s.feitas, feitasNoMes: s.feitasNoMes, aFazerNoMes: s.aFazerNoMes, credito: s.credito, aRepor: s.aRepor,
     meses: s.meses.map((m) => ({ mes: m.mes, rotulo: m.rotulo, feitas: m.feitas, reposicoes: m.reposicoes, faltas: m.faltas, canceladas: m.canceladas, saldo: m.saldo })) };
+}
+
+/* Painel do aluno (26/11/2026, pedido do Richard: "preciso de um Dashboard mais funcional"): aulas deste aluno no mês (feitas,
+   faltas, canceladas) e as últimas aulas com a presença dele, para o resumo do Início e a aba Aulas. Mesma conta do Relatório de
+   aulas (QLAulasMes.aulasDoPeriodo, desde o marco zero). Só as aulas dele: individual, turma, reposição (experimental não). */
+function historicoAulasDoAluno({ org, aluno, turmasDoAluno, ocorrencias, hoje, dias }) {
+  QA.definirMarco(QA.marcoVigente(org, hoje));
+  const ini = QA.somaDias(hoje, -(dias || 60)), mes = hoje.slice(0, 7);
+  const ROT = { presente: "Presente", falta: "Faltou", cancelada: "Cancelada", pendente: "Sem registro" };
+  const aulas = QA.aulasDoPeriodo({ ocorrencias, alunos: [aluno], turmas: turmasDoAluno || [], inicio: ini < mes + "-01" ? ini : mes + "-01", fim: hoje, hoje })
+    .filter((a) => a.status !== "ignorada" && a.tipo !== "experimental" && a.membros.includes(aluno.id) && a.data <= hoje);
+  const doMes = { feitas: 0, faltas: 0, canceladas: 0, semRegistro: 0 };
+  const lista = [];
+  aulas.forEach((a) => {
+    const p = QA.presencaNaAula(a, aluno.id);
+    if (p === "agendada" || p === "ignorada") return;
+    if (a.data.slice(0, 7) === mes) { if (p === "presente") doMes.feitas++; else if (p === "falta") doMes.faltas++; else if (p === "cancelada") doMes.canceladas++; else if (p === "pendente") doMes.semRegistro++; }
+    if (a.data >= ini) lista.push({ data: a.data, horaInicio: a.horaInicio || "", presenca: p, rotulo: ROT[p] || "",
+      titulo: a.tipo === "reposicao" ? "Reposição" : a.origemTipo === "turma" ? String(a.nome || "Turma").slice(0, 80) : "Aula individual", motivo: p === "cancelada" ? String(a.motivo || "").slice(0, 80) : "" });
+  });
+  lista.sort((x, y) => (y.data + y.horaInicio).localeCompare(x.data + x.horaInicio));
+  return { mes, doMes, ultimas: lista.slice(0, 10) };
 }
 
 function proximasAulasDoAluno({ aluno, turmasDoAluno, ocorrencias, arTurmas, quadras, hoje, dias }) {
@@ -630,4 +654,4 @@ function resposta(statusCode, corpo) {
 }
 
 /* usado pela Área do aluno (aluno-conta.js): mesmos dados e as mesmas ações do link, com a conta logada no lugar do token */
-module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS, proximasAulasDoAluno, professoresDoAluno, saldoAulasDoAluno };
+module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS, proximasAulasDoAluno, professoresDoAluno, saldoAulasDoAluno, historicoAulasDoAluno };
