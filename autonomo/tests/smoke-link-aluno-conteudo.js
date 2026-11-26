@@ -28,6 +28,7 @@ function dadosIniciais() {
   };
 }
 
+const revelarAbas = (pg) => pg.evaluate(() => document.querySelectorAll("[data-secao]").forEach((x) => { x.hidden = false; })); /* painel do aluno em abas (26/11/2026): os testes leem todas */
 (async () => {
   const b = await chromium.launch({ args: ["--no-sandbox"] });
   for (const app of ["mty", "autonomo"]) {
@@ -56,7 +57,7 @@ function dadosIniciais() {
     const p = await ctx.newPage();
     p.on("pageerror", (e) => erros.push(e.message));
     await p.goto(base + "/aluno.html?org=demo&id=a1&t=tok123");
-    await p.waitForSelector("[data-painel=movimentos]", { timeout: 20000 });
+    await p.waitForSelector("[data-painel=movimentos]", { state: "attached", timeout: 20000 }); await revelarAbas(p);
     const t = await p.evaluate(() => document.body.innerText);
     assert(/Planejamento da turma · Turma Sub-12/i.test(t), app + ": planejamento da turma no link");
     assert(/1 de 2\s*aulas realizadas/.test(t), app + ": progresso da turma");

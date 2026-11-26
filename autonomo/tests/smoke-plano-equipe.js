@@ -68,6 +68,7 @@ const servidor = http.createServer(async (req, res) => {
   if (!f.startsWith(raiz) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(""); }
   res.writeHead(200, { "content-type": f.endsWith(".html") ? "text/html; charset=utf-8" : f.endsWith(".css") ? "text/css" : "text/javascript" }); res.end(fs.readFileSync(f));
 });
+const revelarAbas = (pg) => pg.evaluate(() => document.querySelectorAll("[data-secao]").forEach((x) => { x.hidden = false; })); /* painel do aluno em abas (26/11/2026): os testes leem todas */
 (async () => {
   await new Promise((r) => servidor.listen(0, r)); const base = "http://localhost:" + servidor.address().port;
   const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
@@ -231,18 +232,18 @@ const servidor = http.createServer(async (req, res) => {
   /* página do aluno: membro vê; quem não é da equipe não vê */
   dados["mty:alunos:v2"] = { value: JSON.stringify(ALUNOS) };
   dados["mty:equipes:v1"] = { value: JSON.stringify(await p.evaluate(() => JSON.parse(localStorage.getItem("st:mty:equipes:v1")))) };
-  await p.goto(base + "/aluno.html?org=org1&id=j1&t=tok1"); await p.waitForSelector('[data-painel="plano-equipe"]', { timeout: 20000 });
+  await p.goto(base + "/aluno.html?org=org1&id=j1&t=tok1"); await p.waitForSelector('[data-painel="plano-equipe"]', { state: "attached", timeout: 20000 }); await revelarAbas(p);
   t = await p.locator('[data-painel="plano-equipe"]').innerText();
   assert(/Planejamento da equipe/.test(t) && /Juvenil competição/.test(t) && /Esta semana/i.test(t) && /Cestos de saque com alvo/.test(t) && /Preparar a Copa Verão/.test(t), "painel do aluno: " + t);
   assert(!/Ótimo saque|Boa intensidade/.test(await p.evaluate(() => document.body.innerText)), "as avaliações não aparecem no link");
   await p.click("[data-plano-equipe-ver]");
   assert(/Todas as semanas/i.test(await p.locator('[data-painel="plano-equipe"]').innerText()));
   await cap("plano-05-aluno");
-  await p.goto(base + "/aluno.html?org=org1&id=j3&t=tok3"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { timeout: 20000 });
+  await p.goto(base + "/aluno.html?org=org1&id=j3&t=tok3"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { state: "attached", timeout: 20000 }); await revelarAbas(p);
   assert.strictEqual(await p.locator('[data-painel="plano-equipe"]').count(), 0, "fora da equipe não vê");
   /* rascunho não vai para o link */
   dados["mty:equipes:v1"] = { value: JSON.stringify(JSON.parse(dados["mty:equipes:v1"].value).map((e) => ({ ...e, plano: { ...e.plano, status: "rascunho" } }))) };
-  await p.goto(base + "/aluno.html?org=org1&id=j1&t=tok1"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { timeout: 20000 });
+  await p.goto(base + "/aluno.html?org=org1&id=j1&t=tok1"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { state: "attached", timeout: 20000 }); await revelarAbas(p);
   assert.strictEqual(await p.locator('[data-painel="plano-equipe"]').count(), 0, "rascunho não aparece para o aluno");
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-plano-equipe: ok");

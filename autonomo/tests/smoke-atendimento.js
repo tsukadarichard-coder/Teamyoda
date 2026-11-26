@@ -118,6 +118,7 @@ const srv = http.createServer((q, r) => {
 }).listen(0);
 const base = "http://localhost:" + srv.address().port;
 
+const revelarAbas = (pg) => pg.evaluate(() => document.querySelectorAll("[data-secao]").forEach((x) => { x.hidden = false; })); /* painel do aluno em abas (26/11/2026): os testes leem todas */
 (async () => {
   const b = await chromium.launch({ args: ["--no-sandbox"] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
@@ -245,7 +246,7 @@ const base = "http://localhost:" + srv.address().port;
 
   /* ── B · página do aluno ── */
   await p.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA");
-  await p.waitForSelector('[data-painel="relatorios-ciclo"]', { timeout: 20000 });
+  await p.waitForSelector('[data-painel="relatorios-ciclo"]', { state: "attached", timeout: 20000 }); await revelarAbas(p);
   t = await p.locator('[data-painel="relatorios-ciclo"]').innerText();
   assert(/Foi um ciclo muito bom para a Ana/.test(t) && /Primeiro ace no jogo/.test(t) && /Orgulho deste grupo/.test(t) && /Ana, siga assim/.test(t) && /Professor: Carlos/.test(t), t);
   assert(!/RASCUNHO-SECRETO/.test(await texto()), "rascunho nunca chega à página do aluno");

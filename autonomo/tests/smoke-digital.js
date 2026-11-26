@@ -74,6 +74,7 @@ const srv = http.createServer((q, r) => {
 const base = "http://localhost:" + srv.address().port;
 const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMethod: metodo, headers: tk ? { authorization: "Bearer " + tk } : {}, body: corpo ? JSON.stringify(corpo) : null, queryStringParameters: {} }); return JSON.parse(x.body); };
 
+const revelarAbas = (pg) => pg.evaluate(() => document.querySelectorAll("[data-secao]").forEach((x) => { x.hidden = false; })); /* painel do aluno em abas (26/11/2026): os testes leem todas */
 (async () => {
   /* a coordenação monta duas trilhas (uma em rascunho) */
   const salvo = await chamar("POST", { acao: "salvarConteudo", trilhas: [
@@ -136,7 +137,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   /* 1. aluna do Team Yoda vem do Meu plano (cartão Academia Digital do link do aluno) */
   const ana = await pagina(390);
   await ana.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA");
-  await ana.waitForSelector("[data-academia-digital] a >> text=Entrar na Academia Digital", { timeout: 30000 });
+  await ana.waitForSelector("[data-academia-digital] a >> text=Entrar na Academia Digital", { state: "attached", timeout: 30000 }); await revelarAbas(ana);
   assert(/Incluída na sua matrícula/.test(await ana.textContent("[data-academia-digital]")));
   await ana.click("[data-academia-digital] a");
   await ana.waitForSelector(".faixa-unidade >> text=Team Yoda · Cooper Tênis");

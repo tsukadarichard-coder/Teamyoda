@@ -73,6 +73,7 @@ const srv = http.createServer((q, r) => {
 const base = "http://localhost:" + srv.address().port;
 
 const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMethod: metodo, headers: tk ? { authorization: "Bearer " + tk } : {}, body: corpo ? JSON.stringify(corpo) : null, queryStringParameters: {} }); return JSON.parse(x.body); };
+const revelarAbas = (pg) => pg.evaluate(() => document.querySelectorAll("[data-secao]").forEach((x) => { x.hidden = false; })); /* painel do aluno em abas (26/11/2026): os testes leem todas */
 (async () => {
   const b = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [];
@@ -95,7 +96,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
 
   /* 2. Meu plano → Criar minha área */
   await p.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA");
-  await p.waitForSelector("[data-minha-area]", { timeout: 20000 });
+  await p.waitForSelector("[data-minha-area]", { state: "attached", timeout: 20000 }); await revelarAbas(p);
   assert(/Guarde este plano na sua área/.test(await texto()));
   await p.click("[data-minha-area] a");
   await esperaTexto(/Aluno de Team Yoda · Cooper Tênis: crie a sua conta/);
@@ -110,7 +111,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   /* 3. abrir o plano pela área */
   await p.click('[data-plano="0"]');
   await p.waitForURL(/aluno\.html\?.*de=area/, { timeout: 15000 });
-  await p.waitForSelector("[data-minha-area]", { timeout: 20000 });
+  await p.waitForSelector("[data-minha-area]", { state: "attached", timeout: 20000 }); await revelarAbas(p);
   assert(/← Minha área/.test(await texto()) && !/Guarde este plano na sua área/.test(await texto()), "pela área, o plano mostra o caminho de volta");
   assert(/[?&]t=tA(&|$)/.test(p.url()), "abre com o link atual do aluno");
 
