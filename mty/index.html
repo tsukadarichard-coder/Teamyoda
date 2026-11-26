@@ -21874,6 +21874,21 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
   turmasVistas.forEach((t) => (t.pendencias || []).filter((p) => !p.resolvida).forEach((p, i) => pendencias.push({ k: "tp" + t.id + i, t: t.nome + (p.data ? " · " + p.data : ""), d: p.motivo || "Pendência da turma", f: () => aoAbrirTurma(t.id) })));
   planosParaRevisar(alunosVistos, turmasVistas).forEach((p) => pendencias.push({ k: "pr" + p.tipo + p.id, t: p.nome, d: "A ficha mudou depois do planejamento: revisar", f: () => (p.tipo === "turma" ? aoAbrirTurma(p.id) : irPara(p.id)) }));
   const pendenciasVistas = todasPendencias ? pendencias : pendencias.slice(0, 5);
+  /* números do professor no mês (ou da academia, em "Toda a academia"): mesma conta do Relatório de aulas */
+  const numerosHoje = useMemo(() => {
+    const mes = hojeISO.slice(0, 7), per = QLAulasMes.periodoDoMes(mes);
+    const previstas = gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], per.inicio, hojeISO, []);
+    const soProf = exigeLogin && uidAtual && !verTodos ? uidAtual : null;
+    const f = QLAulasMes.fechamento({ ocorrencias: ocorrencias || [], alunos: alunos || [], turmas: turmas || [], mes, hoje: hojeISO, extras: previstas, soProfessor: soProf });
+    const ate = per.fim < hojeISO ? per.fim : hojeISO;
+    return {
+      hoje: aulasDoDia.filter((o) => o.status !== "cancelada").length, registradasHoje: aulasDoDia.filter((o) => o.status === "realizada").length,
+      dadas: f.totais.realizadas, previstas: f.aulas.filter((a) => a.data <= ate && a.status !== "cancelada").length,
+      serie: serieAcumulada(f.aulas, per.inicio, ate, (a) => a.status === "realizada"),
+      semRegistro: pendencias.filter((x) => String(x.k).startsWith("sf")).length, aRemarcar: f.totais.aRemarcar,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocorrencias, alunos, turmas, hojeISO, verTodos, uidAtual, aulasDoDia, pendencias.length]);
 
   const secao = { background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "14px 16px", marginBottom: 14 };
   const tituloSecao = (t, n) => <div className="flex items-center justify-between gap-2" style={{ marginBottom: 6 }}><h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{t}</h2>{n != null && <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite }}>{n}</span>}</div>;
@@ -21903,6 +21918,15 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
           aoPasso3={() => primeiroJogador && irPara(primeiroJogador.id)}
           aoDispensar={() => setOnboardingDispensado(true)} />
       )}
+
+      {/* ── A2. números do professor (26/11/2026, estilo novo dos painéis) ── */}
+      <div data-numeros-hoje style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+        <CartaoNumero dado="hoje" rotulo="Aulas hoje" valor={numerosHoje.hoje} sub={numerosHoje.registradasHoje ? numerosHoje.registradasHoje + " já registradas" : "nenhuma registrada ainda"} aoClicar={() => aoAbrirSecao("aulas-hoje")} />
+        <CartaoNumero dado="mes" rotulo="Dadas no mês" valor={numerosHoje.dadas} sub={"de " + numerosHoje.previstas + " previstas"} serie={numerosHoje.serie} />
+        <CartaoNumero dado="sem-registro" rotulo="Sem registro" valor={numerosHoje.semRegistro} sub="aulas que já passaram" selo={numerosHoje.semRegistro ? "registrar" : "em dia"} seloRuim={!!numerosHoje.semRegistro}
+          aoClicar={podePendencias ? () => aoAbrirSecao("pendencias") : null} />
+        <CartaoNumero dado="repor" rotulo="A remarcar" valor={numerosHoje.aRemarcar} sub="aulas de reposição" />
+      </div>
 
       {/* ── B. próxima aula ── */}
       <div data-proxima-aula style={secao}>
@@ -25828,7 +25852,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-painel-aluno";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-paineis-novos";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
@@ -25837,7 +25861,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Meu plano do aluno virou um painel", d: "A página do aluno (link do aluno e Área do aluno) agora abre num painel com abas: Início, com a próxima aula da Agenda (dia, hora, quadra e professor), as aulas feitas no mês, o crédito ou as aulas para repor, o ciclo do plano em % e o nível no método, mais a última conquista e as próximas aulas; Aulas, com as próximas aulas, a mensalidade e as últimas aulas com presença e falta; Plano; Evolução (relatórios, observações, análises e jogos, com um ponto vermelho quando sai relatório novo); e Falar. Nada saiu da página. A próxima aula do plano passou a usar o horário da Agenda (antes podia não bater) e as datas do plano aparecem como dia/mês.", onde: "Página do aluno (link e Área do aluno)", aba: "alunos" },
+  { novo: true, t: "Painéis novos: Hoje, gestão e aluno", d: "O Hoje abre com a saudação e quatro cartões: aulas de hoje, aulas dadas no mês (com o gráfico do mês), aulas sem registro e reposições a remarcar; em Toda a academia, os números são da academia. Na gestão (pela Central), o Início virou o painel do dia da academia: jogadores, aulas dadas no mês, a receber e presença, uma faixa de Atenção (aulas sem registro, mensalidades atrasadas, reposições, eventos sem pagamento), o gráfico de aulas dadas e previstas, o recebido do mês, a agenda de hoje e as aulas por professor; cada aviso abre a tela certa. O Meu plano do aluno ganhou o cabeçalho verde com a próxima aula e o anel do ciclo do plano. Tudo com os dados que já estão no app.", onde: "Hoje · Gestão › Início · Página do aluno", aba: "dashboard" },
+  { t: "Meu plano do aluno virou um painel", d: "A página do aluno (link do aluno e Área do aluno) agora abre num painel com abas: Início, com a próxima aula da Agenda (dia, hora, quadra e professor), as aulas feitas no mês, o crédito ou as aulas para repor, o ciclo do plano em % e o nível no método, mais a última conquista e as próximas aulas; Aulas, com as próximas aulas, a mensalidade e as últimas aulas com presença e falta; Plano; Evolução (relatórios, observações, análises e jogos, com um ponto vermelho quando sai relatório novo); e Falar. Nada saiu da página. A próxima aula do plano passou a usar o horário da Agenda (antes podia não bater) e as datas do plano aparecem como dia/mês.", onde: "Página do aluno (link e Área do aluno)", aba: "alunos" },
   { t: "Mensalidade de 3 aulas, com crédito", d: "Agora dá para marcar, por aluno, quantas aulas do mês a mensalidade cobre (por exemplo, 3). A aula da semana segue normal: num mês com 4 ou 5 aulas, as que passam de 3 ficam como crédito da academia com o aluno e cobrem as faltas dele sozinhas, de um mês para o outro; só vira reposição o que o crédito não cobre. Marque na ficha do jogador (Rotina de treino › Mensalidade cobre) ou no + Agendar, numa aula individual que se repete. A página do jogador mostra as aulas feitas, as para repor e o crédito da academia, mês a mês; o aluno vê o mesmo no Meu plano, e a Cobrança mostra a regra ao lado do nome. O valor da mensalidade não muda. A conta começa no marco zero de 1º de dezembro.", onde: "Jogadores › ficha › Rotina de treino e Agenda › + Agendar", aba: "alunos" },
   { t: "Agenda: horário tirado sai de verdade", d: "Quando o horário fixo sai da ficha do jogador ou da turma, as próximas aulas daquele horário saem da Agenda (antes ficavam lá e conflitavam com a turma). Em Apagar da agenda › Esta e as próximas, as aulas das semanas seguintes agora somem e não voltam: a Agenda passou a ser juntada entre os aparelhos, então um celular com a Agenda antiga aberta não traz de volta o que foi apagado em outro. Aulas já dadas, com presença marcada ou que já começaram ficam como estão. Encerrar uma série em Horários recorrentes também tira as próximas da Agenda, em vez de deixá-las como canceladas contando como reposição.", onde: "Agenda", aba: "agenda" },
   { t: "Marco zero em 1º de dezembro", d: "A partir de 1º de dezembro de 2026 o Team Yoda roda tudo pelo app, e a contagem começa do zero: aulas do mês, faltas, canceladas, aulas sem registro, reposições e o fechamento para a cobrança e o pagamento dos professores contam só de 1º de dezembro em diante, sempre pelo mês (o planejamento segue como está, em paralelo). As reposições de antes foram zeradas: créditos ainda não usados e pedidos pendentes saem da lista (ficam guardados, nada foi apagado); reposição que já estava marcada na Agenda continua valendo. A agenda, os registros e os planejamentos de antes continuam guardados.", onde: "Agenda, Relatório de aulas e reposições", aba: "agenda" },
@@ -25987,27 +26012,315 @@ const NAV_PRINCIPAL_TY = PAINEL_GESTAO ? [
   { v: "agenda", r: "Agenda", icone: "agenda", inclui: ["agenda", "reposicoes"] },
 ];
 /* tela inicial do painel: um atalho para cada tela de gestão que esta conta pode abrir */
-function GestaoInicio({ itens, aoIr }) {
+/* ── Painéis no estilo novo (26/11/2026, pedido do Richard com o vídeo de referência "CRM dashboard": "Use em tudo, pode fazer"):
+   saudação, cartões de número com mini-gráfico, faixa de atenção, gráfico do mês e anel. Peças usadas no Início da gestão e no Hoje. ── */
+const VERDE_ESCURO = "#103B32", VERDE_LINHA = "#3F7A22", VERDE_CLARO = "#E6F2DC", VERDE_TEXTO = "#2F6B1A";
+function saudacaoDoDia(d) { const h = (d || new Date()).getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; }
+function caminhoSerie(valores, w, h, pad, maxFixo) {
+  const v = (valores || []).map((x) => Number(x) || 0);
+  if (v.length < 2) return { linha: "", area: "" };
+  const max = maxFixo != null ? maxFixo : Math.max(...v), min = maxFixo != null ? 0 : Math.min(...v), amp = (max - min) || 1;
+  const pts = v.map((y, i) => [(i / (v.length - 1)) * w, h - pad - ((y - min) / amp) * (h - 2 * pad)]);
+  const linha = pts.map((q, i) => (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" ");
+  return { linha, area: linha + " L" + w + " " + h + " L0 " + h + " Z", ultimo: pts[pts.length - 1] };
+}
+function MiniGrafico({ valores, largura = 96, altura = 32, cheio }) {
+  const c = caminhoSerie(valores, largura, altura, 4);
+  if (!c.linha) return null;
+  return (
+    <svg width={cheio ? "100%" : largura} height={altura} viewBox={"0 0 " + largura + " " + altura} preserveAspectRatio="none" aria-hidden="true" style={{ flexShrink: 0, display: "block" }}>
+      <path d={c.area} fill={C.saibro} fillOpacity="0.16" />
+      <path d={c.linha} fill="none" stroke={VERDE_LINHA} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+function CartaoNumero({ rotulo, valor, sub, selo, seloRuim, serie, aoClicar, dado }) {
+  const corpo = (
+    <>
+      <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.grafite }}>{rotulo}</span>
+      <span style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 28, fontWeight: 700, color: C.tinta, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{valor}</span>
+        {sub && <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>{sub}</span>}
+      </span>
+      {serie && <MiniGrafico valores={serie} cheio />}
+      {selo && <span style={{ alignSelf: "flex-start", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "3px 9px",
+        color: seloRuim ? "#9A3412" : VERDE_TEXTO, background: seloRuim ? "#FBE9DF" : VERDE_CLARO }}>{selo}</span>}
+    </>
+  );
+  const estilo = { display: "flex", flexDirection: "column", gap: 8, textAlign: "left", background: C.cal, border: "1px solid " + C.linha, borderRadius: 16, padding: 16, minHeight: 44, width: "100%", boxSizing: "border-box" };
+  return aoClicar
+    ? <button type="button" onClick={aoClicar} data-cartao-numero={dado} style={{ ...estilo, cursor: "pointer", fontFamily: ARCH, color: "inherit" }}>{corpo}</button>
+    : <div data-cartao-numero={dado} style={estilo}>{corpo}</div>;
+}
+function FaixaAtencao({ itens }) {
+  if (!itens.length) return null;
+  const COR = { verm: "#C2410C", amar: "#B7791F", azul: "#1D4E89", verde: VERDE_LINHA };
+  return (
+    <section aria-label="Atenção" data-faixa-atencao style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 16, padding: 12, display: "flex", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ flex: "0 0 76px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <span style={{ width: 38, height: 38, borderRadius: 12, background: VERDE_ESCURO, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.saibro} strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5v.5" /><circle cx="12" cy="12" r="9" /></svg>
+        </span>
+        <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, letterSpacing: 1, color: VERDE_ESCURO }}>ATENÇÃO</span>
+      </div>
+      {itens.map((x) => (
+        <button key={x.k} type="button" onClick={x.f} data-atencao={x.k}
+          style={{ flex: "1 1 200px", display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left", fontFamily: ARCH, color: C.tinta, background: C.papel, border: "1px solid " + C.linha, borderRadius: 12, padding: 12, cursor: "pointer", minHeight: 44 }}>
+          <span style={{ flex: "0 0 10px", width: 10, height: 10, marginTop: 4, borderRadius: 999, background: COR[x.cor] || COR.azul }} />
+          <span style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13, lineHeight: 1.4 }}>
+            <span><b>{x.forte}</b> {x.texto}</span>
+            <span style={{ fontWeight: 700, color: VERDE_ESCURO }}>{x.acao} →</span>
+          </span>
+        </button>
+      ))}
+    </section>
+  );
+}
+function GraficoMes({ titulo, sub, series, rotulos, aria }) {
+  const W = 640, H = 200, X0 = 40, Y0 = 16, Y1 = 180;
+  const todas = series.flatMap((x) => x.valores);
+  const max = Math.max(4, ...todas), topo = Math.ceil(max / 4) * 4;
+  const n = Math.max(2, ...series.map((x) => x.valores.length));
+  const x = (i) => X0 + (i / (n - 1)) * (W - X0 - 10), y = (v) => Y1 - (v / topo) * (Y1 - Y0);
+  const cam = (l) => l.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(" ");
+  return (
+    <section style={{ flex: "2 1 460px", minWidth: 0, background: C.cal, border: "1px solid " + C.linha, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10 }} data-grafico-mes>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div>
+          <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, color: C.tinta }}>{titulo}</h2>
+          {sub && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{sub}</p>}
+        </div>
+        <div style={{ display: "flex", gap: 12, fontFamily: ARCH, fontSize: 12, color: C.grafite }}>
+          {series.map((s) => (
+            <span key={s.nome} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 14, height: 0, borderTop: "2.5px " + (s.tracejado ? "dashed " : "solid ") + s.cor }} />{s.nome}
+            </span>
+          ))}
+        </div>
+      </div>
+      <svg viewBox={"0 0 " + W + " " + (H + 16)} width="100%" role="img" aria-label={aria}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={X0} x2={W - 10} y1={y(topo * f)} y2={y(topo * f)} stroke={f ? "#EEF2F0" : "#D5DED9"} />
+            <text x={X0 - 8} y={y(topo * f) + 4} fontSize="11" textAnchor="end" fill={C.grafite}>{Math.round(topo * f)}</text>
+          </g>
+        ))}
+        {series.filter((s) => s.area && s.valores.length > 1).map((s) => (
+          <path key={"a" + s.nome} d={cam(s.valores) + " L" + x(s.valores.length - 1).toFixed(1) + " " + Y1 + " L" + X0 + " " + Y1 + " Z"} fill={C.saibro} fillOpacity="0.18" />
+        ))}
+        {series.filter((s) => s.valores.length > 1).map((s) => (
+          <path key={"l" + s.nome} d={cam(s.valores)} fill="none" stroke={s.cor} strokeWidth={s.tracejado ? 2 : 2.5} strokeDasharray={s.tracejado ? "5 5" : undefined} strokeLinecap="round" strokeLinejoin="round" />
+        ))}
+        {(rotulos || []).map((r) => <text key={r.i} x={x(r.i)} y={H + 12} fontSize="11" textAnchor={r.i === 0 ? "start" : r.i >= n - 1 ? "end" : "middle"} fill={C.grafite}>{r.t}</text>)}
+      </svg>
+    </section>
+  );
+}
+function AnelPainel({ pct, titulo, sub, centro, rodape }) {
+  const c = 2 * Math.PI * 54, p = Math.max(0, Math.min(100, pct || 0));
+  return (
+    <section style={{ flex: "1 1 260px", minWidth: 0, background: C.cal, border: "1px solid " + C.linha, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10 }} data-anel-painel>
+      <div>
+        <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, color: C.tinta }}>{titulo}</h2>
+        {sub && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{sub}</p>}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <svg width="150" height="150" viewBox="0 0 140 140" role="img" aria-label={titulo + ": " + Math.round(p) + "%"}>
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#E7EFEA" strokeWidth="16" />
+          {p > 0 && <circle cx="70" cy="70" r="54" fill="none" stroke={VERDE_LINHA} strokeWidth="16" strokeLinecap="round" strokeDasharray={(c * p / 100).toFixed(1) + " " + c.toFixed(1)} transform="rotate(-90 70 70)" />}
+          <text x="70" y="72" textAnchor="middle" fontFamily="Space Grotesk, Archivo, sans-serif" fontSize="28" fontWeight="700" fill={C.tinta}>{Math.round(p)}%</text>
+          {centro && <text x="70" y="92" textAnchor="middle" fontSize="10" fill={C.grafite}>{centro}</text>}
+        </svg>
+      </div>
+      {rodape}
+    </section>
+  );
+}
+/* série acumulada por dia (do primeiro dia do mês até `ate`): quantas aulas passam no filtro até cada dia */
+function serieAcumulada(aulas, inicio, ate, filtro) {
+  const out = [];
+  let n = 0;
+  const porDia = new Map();
+  (aulas || []).forEach((a) => { if (filtro(a)) porDia.set(a.data, (porDia.get(a.data) || 0) + 1); });
+  for (let d = inicio; d <= ate; d = QLAulasMes.somaDias(d, 1)) { n += porDia.get(d) || 0; out.push(n); }
+  return out;
+}
+
+/* Início da gestão: o painel do dia da academia (Richard e administrativo na Central; coordenação na 39 Ranch). Tudo calculado
+   do que o app já tem (jogadores, turmas, Agenda, registros, eventos) e, para quem vê o Financeiro ou a Cobrança, o recebido do mês. */
+function GestaoInicio({ itens, aoIr, alunos, turmas, ocorrencias, eventos, quadras, orgAtual, papelFin, uidAtual }) {
+  const [fin, setFin] = useState(null);
+  const [nome, setNome] = useState("");
   const notas = {
     financeiro: "Mensalidades, recebimentos e o fechamento do mês", cobranca: "Cobranças e lembretes de pagamento", quadras: "Quadras, link de reservas e bloqueios",
     "grade-aulas": "Os horários fixos das aulas e turmas", clientes: "Reservas e inscrições de quem não treina aqui", torneios: "Torneios e inscrições", eventos: "Eventos e convidados",
     "aulas-equipe": "As aulas de cada professor", relatorio: "Aulas dadas, faltas e reposições do mês", atendimento: "O painel do Head Trainer",
     equipe: "Professores, contas e pedidos de cadastro",
   };
+  const pode = (v) => itens.some((t) => t.v === v);
+  useEffect(() => {
+    let vivo = true;
+    if (uidAtual) listaProfessores().then((l) => { const eu = (l || []).find((p) => p.uid === uidAtual); if (vivo && eu) setNome(eu.nome || ""); }).catch(() => {});
+    if (!nome) { const u = window.mtyAuth && window.mtyAuth.usuario && window.mtyAuth.usuario(); if (u && u.displayName) setNome(u.displayName); }
+    return () => { vivo = false; };
+  }, [uidAtual]);
+  /* recebido do mês: só para quem vê o Financeiro (Richard) ou a Cobrança (administrativo) */
+  useEffect(() => {
+    let vivo = true;
+    if (papelFin !== "dono" && papelFin !== "admin") { setFin(null); return; }
+    const mes = mesISOAtual() < FINANCEIRO_INICIO ? FINANCEIRO_INICIO : mesISOAtual();
+    chamarFinanceiro("GET", mes).then((d) => {
+      if (!vivo) return;
+      const A = (d.academias || []).find((a) => a.org === (orgAtual || "team-yoda")) || (d.academias || [])[0];
+      if (!A) return;
+      const c = A.mes && A.mes.controle ? { recebido: A.mes.controle.recebido, aReceber: A.mes.controle.aReceber, abertos: (A.mes.controle.emAberto || []).length, atrasados: A.mes.controle.atrasados }
+        : A.totais ? { recebido: A.totais.recebido, aReceber: A.totais.aReceber, abertos: A.totais.emAberto, atrasados: A.totais.atrasados } : null;
+      setFin(c ? { ...c, mes } : null);
+    }).catch(() => { if (vivo) setFin(null); });
+    return () => { vivo = false; };
+  }, [papelFin, orgAtual]);
+
+  const hoje = dataISO(new Date()), mes = hoje.slice(0, 7), per = QLAulasMes.periodoDoMes(mes);
+  const d = useMemo(() => {
+    const ate = per.fim < hoje ? per.fim : hoje;
+    const previstas = gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], per.inicio, ate, []);
+    const f = QLAulasMes.fechamento({ ocorrencias: ocorrencias || [], alunos: alunos || [], turmas: turmas || [], mes, hoje, extras: previstas });
+    const ativos = (alunos || []).filter((a) => a && a.nome);
+    const novos = ativos.filter((a) => String(a.criadoEm || "").slice(0, 7) === mes).length;
+    /* base de jogadores nos últimos 6 meses (pela data de cadastro) */
+    const meses6 = [5, 4, 3, 2, 1, 0].map((k) => QLAulasMes.somarMes(mes, -k));
+    const base = meses6.map((m) => ativos.filter((a) => !a.criadoEm || String(a.criadoEm).slice(0, 7) <= m).length);
+    const passadas = f.aulas.filter((a) => a.data <= ate);
+    const dadas = serieAcumulada(passadas, per.inicio, ate, (a) => a.status === "realizada");
+    const previstasS = serieAcumulada(passadas, per.inicio, ate, (a) => a.status !== "cancelada");
+    const pres = f.porAluno.reduce((s, l) => s + l.presencas, 0), falt = f.porAluno.reduce((s, l) => s + l.faltas, 0);
+    /* presença semana a semana no mês */
+    const semanas = [];
+    for (let ini = per.inicio; ini <= ate; ini = QLAulasMes.somaDias(ini, 7)) {
+      const fim = QLAulasMes.somaDias(ini, 6);
+      let p = 0, q = 0;
+      f.porAluno.forEach((l) => l.aulas.forEach((x) => { if (x.aula.data >= ini && x.aula.data <= fim) { if (x.presenca === "presente") p++; else if (x.presenca === "falta") q++; } }));
+      if (p + q) semanas.push(Math.round(100 * p / (p + q)));
+    }
+    const doDia = f.aulas.filter((a) => a.data === hoje).sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""));
+    const ontem = QLAulasMes.somaDias(hoje, -1);
+    const semRegistro = f.aulas.filter((a) => a.status === "pendente").length, semRegistroOntem = f.aulas.filter((a) => a.status === "pendente" && a.data === ontem).length;
+    const evAbertos = (eventos || []).filter((e) => e && e.ativo !== false && String(e.dataFim || e.data || "9999") >= hoje).map((e) => ({ e, r: resumoEvento(e) })).filter((x) => x.r.emAberto > 0);
+    return { f, ativos: ativos.length, novos, base, dadas, previstasS, pres, falt, semanas, doDia, semRegistro, semRegistroOntem, evAbertos, ate };
+  }, [alunos, turmas, ocorrencias, eventos, hoje]);
+
+  const primeiro = /[@.]/.test((nome || "").trim().split(" ")[0]) ? "" : (nome || "").trim().split(" ")[0];
+  const dataLonga = new Date().toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const presPct = d.pres + d.falt ? Math.round(100 * d.pres / (d.pres + d.falt)) : null;
+  const reais = (v) => "R$ " + (Math.round(Number(v) || 0)).toLocaleString("pt-BR");
+  const resumoDia = [d.doDia.filter((a) => a.status !== "cancelada").length + " aulas hoje",
+    d.semRegistroOntem ? d.semRegistroOntem + " sem registro de ontem" : null,
+    fin && fin.atrasados ? fin.atrasados + " mensalidades atrasadas" : null].filter(Boolean);
+  const atencao = [];
+  if (d.semRegistro) atencao.push({ k: "sem-registro", cor: "verm", forte: d.semRegistro + (d.semRegistro === 1 ? " aula" : " aulas"), texto: "do mês sem registro.", acao: "Ver no relatório", f: () => aoIr("relatorio") });
+  if (fin && fin.atrasados) atencao.push({ k: "atrasadas", cor: "amar", forte: fin.atrasados + (fin.atrasados === 1 ? " mensalidade" : " mensalidades"), texto: "atrasada" + (fin.atrasados === 1 ? "." : "s."), acao: pode("cobranca") ? "Abrir Cobrança" : "Abrir Financeiro", f: () => aoIr(pode("cobranca") ? "cobranca" : "financeiro") });
+  if (d.f.totais.aRemarcar) atencao.push({ k: "repor", cor: "azul", forte: d.f.totais.aRemarcar + (d.f.totais.aRemarcar === 1 ? " aula" : " aulas"), texto: "para remarcar (reposição).", acao: "Ver reposições", f: () => aoIr("relatorio") });
+  d.evAbertos.slice(0, 2).forEach((x) => atencao.push({ k: "ev" + x.e.id, cor: "verde", forte: (x.e.nome || "Evento") + ":", texto: x.r.inscritos + " inscritos, " + x.r.emAberto + " sem pagamento.", acao: "Abrir Eventos", f: () => aoIr("eventos") }));
+  const ROT = { realizada: ["Registrada", VERDE_TEXTO, VERDE_CLARO], falta: ["Aluno faltou", "#9A3412", "#FBE9DF"], cancelada: ["Cancelada", "#9A3412", "#FBE9DF"], hoje: ["Agendada", C.grafite, "#EEF2F0"], pendente: ["Sem registro", "#9A3412", "#FBE9DF"], agendada: ["Agendada", C.grafite, "#EEF2F0"] };
+  const quadraNome = (id) => { const q = (quadras || []).find((x) => x.id === id); return q ? q.nome : ""; };
+  const profs = d.f.porProfessor.filter((p) => p.dadas > 0).slice(0, 6), maxProf = Math.max(1, ...profs.map((p) => p.dadas));
+  const nDias = d.dadas.length;
+  const secao = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10, minWidth: 0 };
   return (
-    <div data-gestao-inicio>
+    <div data-gestao-inicio style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {window.NA_CENTRAL && <a href="/" data-voltar-central style={{ ...prosa, fontSize: 13, color: C.grafite, textDecoration: "underline" }}>← Voltar para a Central</a>}
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Gestão da academia</h1>
-      <p style={{ ...prosa, color: C.grafite, marginTop: 4, marginBottom: 16 }}>As telas de gestão do Team Yoda, separadas do app dos professores. Os dados são os mesmos do app.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-        {itens.map((t) => (
-          <button key={t.v} type="button" onClick={() => aoIr(t.v)} data-atalho-gestao={t.v} className="text-left"
-            style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "13px 15px", cursor: "pointer", minHeight: 76 }}>
-            <span style={{ display: "block", fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta }}>{t.r}</span>
-            {notas[t.v] && <span style={{ display: "block", ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{notas[t.v]}</span>}
-          </button>
-        ))}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, letterSpacing: 1.5, color: VERDE_LINHA }}>● GESTÃO DA ACADEMIA · {dataLonga.toUpperCase()}</span>
+          <h1 style={{ fontFamily: ARCH, fontSize: 28, fontWeight: 700, color: VERDE_ESCURO, lineHeight: 1.15, marginTop: 2 }}>{saudacaoDoDia()}{primeiro ? ", " + primeiro : ""}</h1>
+          <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>Hoje: {resumoDia.join(", ")}.</p>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {pode("relatorio") && <Botao variante="vazio" onClick={() => aoIr("relatorio")}>Relatório do mês</Botao>}
+          {pode("grade-aulas") && <Botao onClick={() => aoIr("grade-aulas")}>Horários fixos</Botao>}
+        </div>
       </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+        <CartaoNumero dado="alunos" rotulo="Jogadores cadastrados" valor={d.ativos} sub="na academia" selo={d.novos ? "+" + d.novos + " neste mês" : null} serie={d.base} />
+        <CartaoNumero dado="aulas" rotulo="Aulas dadas no mês" valor={d.f.totais.realizadas} sub={"de " + d.previstasS[d.previstasS.length - 1] + " previstas até hoje"}
+          selo={d.f.totais.pendentes ? d.f.totais.pendentes + " sem registro" : null} seloRuim serie={d.dadas} aoClicar={pode("relatorio") ? () => aoIr("relatorio") : null} />
+        {fin ? (
+          <CartaoNumero dado="receber" rotulo="A receber no mês" valor={reais((fin.aReceber || 0) - (fin.recebido || 0))} sub={fin.abertos + " mensalidades em aberto"}
+            selo={fin.atrasados ? fin.atrasados + " atrasadas" : "nenhuma atrasada"} seloRuim={!!fin.atrasados} aoClicar={() => aoIr(pode("cobranca") ? "cobranca" : "financeiro")} />
+        ) : (
+          <CartaoNumero dado="repor" rotulo="A remarcar" valor={d.f.totais.aRemarcar} sub="aulas de reposição" aoClicar={pode("relatorio") ? () => aoIr("relatorio") : null} />
+        )}
+        <CartaoNumero dado="presenca" rotulo="Presença no mês" valor={presPct == null ? "—" : presPct + "%"} sub={d.pres + " presenças · " + d.falt + " faltas"} serie={d.semanas.length > 1 ? d.semanas : null} />
+      </div>
+
+      <FaixaAtencao itens={atencao} />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+        <GraficoMes titulo="Aulas dadas × previstas" sub={QLAulasMes.nomeDoMes(mes).replace(/^./, (c) => c.toUpperCase()) + ", acumulado até hoje"}
+          series={[{ nome: "Dadas", cor: VERDE_LINHA, valores: d.dadas, area: true }, { nome: "Previstas", cor: "#8A9A92", valores: d.previstasS, tracejado: true }]}
+          rotulos={[{ i: 0, t: "01" }, { i: Math.floor((nDias - 1) / 2), t: String(Math.floor((nDias - 1) / 2) + 1).padStart(2, "0") }, { i: nDias - 1, t: String(nDias).padStart(2, "0") }]}
+          aria={"Aulas dadas no mês: " + d.f.totais.realizadas + " de " + d.previstasS[d.previstasS.length - 1] + " previstas até hoje"} />
+        {fin ? (
+          <AnelPainel titulo="Recebido no mês" sub={"Mensalidades e pacotes · " + QLAulasMes.nomeDoMes(fin.mes)} pct={fin.aReceber ? 100 * fin.recebido / fin.aReceber : 0} centro="recebido"
+            rodape={<div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+              <div style={{ background: C.papel, borderRadius: 10, padding: 10 }}><div style={{ ...prosa, fontSize: 12, color: C.grafite }}>Recebido</div><div style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700 }}>{reais(fin.recebido)}</div></div>
+              <div style={{ background: C.papel, borderRadius: 10, padding: 10 }}><div style={{ ...prosa, fontSize: 12, color: C.grafite }}>Total do mês</div><div style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700 }}>{reais(fin.aReceber)}</div></div>
+            </div>} />
+        ) : (
+          <AnelPainel titulo="Aulas registradas" sub="Das aulas que já passaram no mês" pct={d.f.totais.aulas ? 100 * (d.f.totais.aulas - d.f.totais.pendentes) / d.f.totais.aulas : 0} centro="com registro"
+            rodape={<p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{d.f.totais.pendentes} sem registro de {d.f.totais.aulas} aulas.</p>} />
+        )}
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+        <section style={{ ...secao, flex: "2 1 460px" }} data-agenda-hoje-gestao>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Agenda de hoje</h2>
+            {pode("aulas-equipe") && <button type="button" onClick={() => aoIr("aulas-equipe")} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: VERDE_ESCURO, background: "none", border: "none", cursor: "pointer", minHeight: 44 }}>Aulas da equipe →</button>}
+          </div>
+          {d.doDia.length === 0 ? <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhuma aula na agenda de hoje.</p> : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: ARCH, fontSize: 13.5, minWidth: 480 }}>
+                <thead><tr style={{ textAlign: "left", color: C.grafite, fontSize: 12 }}><th style={{ padding: "6px" }}>Hora</th><th style={{ padding: "6px" }}>Aula</th><th style={{ padding: "6px" }}>Professor</th><th style={{ padding: "6px" }}>Quadra</th><th style={{ padding: "6px" }}>Situação</th></tr></thead>
+                <tbody>
+                  {d.doDia.map((a) => { const r = ROT[a.status] || ROT.agendada; return (
+                    <tr key={a.id} style={{ borderTop: "1px solid #EEF2F0" }}>
+                      <td style={{ padding: "9px 6px", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{a.horaInicio || "--:--"}</td>
+                      <td style={{ padding: "9px 6px" }}>{a.nome}{a.tipo === "reposicao" ? " · reposição" : ""}</td>
+                      <td style={{ padding: "9px 6px", color: C.grafite }}>{a.deu.nome}</td>
+                      <td style={{ padding: "9px 6px", color: C.grafite }}>{quadraNome(a.ocorrencia && a.ocorrencia.quadraId)}</td>
+                      <td style={{ padding: "9px 6px" }}><span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "3px 9px", color: r[1], background: r[2], whiteSpace: "nowrap" }}>{r[0]}</span></td>
+                    </tr>
+                  ); })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+        <section style={{ ...secao, flex: "1 1 260px" }} data-aulas-por-professor>
+          <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Aulas dadas por professor</h2>
+          {profs.length === 0 ? <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula registrada no mês ainda.</p> : profs.map((p) => (
+            <div key={p.chave} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontFamily: ARCH, fontSize: 13 }}><span style={{ fontWeight: 600 }}>{p.nome}</span><span style={{ color: C.grafite }}>{p.dadas} aulas</span></div>
+              <div style={{ height: 8, background: "#EEF2F0", borderRadius: 999, overflow: "hidden" }}><div style={{ height: 8, borderRadius: 999, background: VERDE_LINHA, width: Math.round(100 * p.dadas / maxProf) + "%" }} /></div>
+            </div>
+          ))}
+        </section>
+      </div>
+
+      <section style={secao}>
+        <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Atalhos</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 10 }}>
+          {itens.map((t) => (
+            <button key={t.v} type="button" onClick={() => aoIr(t.v)} data-atalho-gestao={t.v}
+              style={{ textAlign: "left", fontFamily: ARCH, background: C.papel, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", cursor: "pointer", minHeight: 70 }}>
+              <span style={{ display: "block", fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, color: C.tinta }}>{t.r}</span>
+              {notas[t.v] && <span style={{ display: "block", ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{notas[t.v]}</span>}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -26108,14 +26421,13 @@ function CabecalhoHoje({ identidade, uidAtual }) {
     if (uidAtual) listaProfessores().then((l) => { const eu = (l || []).find((p) => p.uid === uidAtual); if (vivo && eu) setNome(eu.nome || ""); }).catch(() => {});
     return () => { vivo = false; };
   }, [uidAtual]);
-  const primeiro = (nome || "").trim().split(" ")[0];
+  const primeiro = /[@.]/.test((nome || "").trim().split(" ")[0]) ? "" : (nome || "").trim().split(" ")[0];
   const data = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
   return (
     <div className="mb-3">
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>Hoje</h1>
-      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>
-        {primeiro ? "Olá, " + primeiro + " · " : ""}{data.charAt(0).toUpperCase() + data.slice(1)}{identidade && identidade.nome ? " · " + identidade.nome : ""}
-      </p>
+      <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, letterSpacing: 1.5, color: VERDE_LINHA }}>● HOJE · {data.toUpperCase()}</span>
+      <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, lineHeight: 1.15, color: VERDE_ESCURO, marginTop: 2 }}>{saudacaoDoDia()}{primeiro ? ", " + primeiro : ""}</h1>
+      {identidade && identidade.nome && <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>{identidade.nome}</p>}
     </div>
   );
 }
@@ -29709,7 +30021,7 @@ function App() {
 
       {(() => { const nv = novidadesTYPara(ehDonoFinanceiro() || papelFin === "admin");
         return <JanelaNovidades key={novidadesChave + ":" + nv.versao} nomeApp="Team Yoda" versao={nv.versao} itens={nv.itens} irPara={(v) => { setAba(v === "financeiro" && !ehDonoFinanceiro() ? "cobranca" : v); setAbertoId(null); }} />; })()}
-      <main className="mty-main px-5 py-6 mty-nav-anim" style={{ maxWidth: lateralVisivel && menuRecolhido ? 940 : 760, marginLeft: larguraLateral,
+      <main className="mty-main px-5 py-6 mty-nav-anim" style={{ maxWidth: aba === "gestao-inicio" && PAINEL_GESTAO ? 1180 : lateralVisivel && menuRecolhido ? 940 : 760, marginLeft: larguraLateral,
         paddingBottom: modoTela === "celular" ? "calc(84px + env(safe-area-inset-bottom))" : undefined }}>
         <AvisoEnderecoNovo orgAtual={orgAtual} />
         <AvisoNuvem erro={erroNuvem} bytesAlunos={bytesAlunos} veTamanho={ehDonoFinanceiro() || papelFin === "admin" || papelAtual === "coordenador"}
@@ -29723,7 +30035,7 @@ function App() {
              <div className="mt-4"><Botao onClick={() => { window.location.href = ORIGEM_PUBLICA + "/treinador"; }}>Abrir o app dos professores</Botao></div>
            </div>)
          ) :
-         aba === "gestao-inicio" ? (PAINEL_GESTAO ? <GestaoInicio itens={itensGestao} aoIr={irNav} /> : null) :
+         aba === "gestao-inicio" ? (PAINEL_GESTAO ? <GestaoInicio itens={itensGestao} aoIr={irNav} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} eventos={eventos} quadras={quadras} orgAtual={orgAtual} papelFin={papelFin} uidAtual={uidAtual} /> : null) :
          aba === "planejamentos" ? <TelaPlanejamentos alunos={alunos} turmas={turmas} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAdicionarJogador={() => { criar(); setAba("alunos"); }} /> :
          aba === "ajuda" ? <TelaAjuda mostraManual={mostraManual} aoIr={irNav}

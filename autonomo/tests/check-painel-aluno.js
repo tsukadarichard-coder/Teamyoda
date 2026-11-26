@@ -65,8 +65,10 @@ assert(!JSON.stringify(hist).includes("Nicolas"), "sem o nome do aluno nas aulas
 
   /* 1. Início: 5 abas, resumo com a próxima aula da Agenda, as outras seções escondidas */
   assert.deepStrictEqual(await p.$$eval("[data-aba]", (l) => l.map((x) => x.textContent.replace(/\s+/g, ""))), ["Início", "Aulas", "Plano", "Evolução", "Falar"]);
-  const resumo = await p.innerText("[data-resumo]");
-  assert(/PRÓXIMA AULA/i.test(resumo) && /Turma Laranja/.test(resumo) && /Aulas feitas no mês\s*\n\s*2/.test(resumo) && /Y3 · Direção/.test(resumo), resumo);
+  const cabeca = await p.innerText("[data-cabeca-aluno]"), resumo = await p.innerText("[data-resumo]");
+  assert(/Olá, Nicolas/.test(cabeca) && /PRÓXIMA AULA/i.test(cabeca) && /Turma Laranja/.test(cabeca), cabeca);
+  assert(/Aulas feitas no mês\s*\n\s*2/.test(resumo) && /Y3 · Direção/.test(resumo), resumo);
+  assert(/42%/.test(await p.innerText("[data-ciclo-anel]")), "anel do ciclo no Início");
   assert(await visivel("[data-ultima-conquista]"), "última conquista no Início");
   assert(!(await visivel("[data-historico-aulas]")), "aba Aulas escondida");
   assert(await p.$(".aba .ponto"), "ponto de relatório novo na aba Evolução");
