@@ -349,7 +349,25 @@ function anotarErroNuvem(chave, valor, e) {
     window.dispatchEvent(new CustomEvent("mty-erro-nuvem", { detail: window.__erroNuvem }));
   } catch (x) { /* sem evento: fica só no console */ }
 }
-const SINC = { listas: new Set(["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1"]), base: {}, aoMudar: {}, local: {}, pronto: {} };
+/* Agenda na junção (26/11/2026, "na edição da agenda... excluir para as semanas seguintes, não está excluindo, ele continua
+   mantendo"): a lista de aulas era gravada inteira por cada aparelho (quem gravava por último ganhava), então um aparelho com a
+   Agenda antiga aberta trazia de volta as aulas apagadas em outro. Agora ela é juntada como jogadores e turmas. Dois aparelhos
+   podem gerar a mesma aula fixa (mesma série e data) antes de se verem: fica uma só, a que tem algo marcado, senão a mais antiga. */
+function semAulaRepetida(lista) {
+  const pos = new Map(), out = [];
+  const peso = (x) => (x.status && x.status !== "agendada" ? 2 : 0) + (x.presencas && Object.keys(x.presencas).length ? 1 : 0);
+  (lista || []).forEach((o) => {
+    if (!o || !o.recorrenciaChave || !o.data) { out.push(o); return; }
+    const k = o.recorrenciaChave + "|" + o.data;
+    if (!pos.has(k)) { pos.set(k, out.length); out.push(o); return; }
+    const i = pos.get(k), a = out[i];
+    if (peso(o) > peso(a) || (peso(o) === peso(a) && String(o.criadoEm || "") < String(a.criadoEm || ""))) out[i] = o;
+  });
+  return out;
+}
+const SINC = { listas: new Set(["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1", "mty:ocorrencias:v1"]), base: {}, aoMudar: {}, local: {}, pronto: {},
+  depois: { "mty:ocorrencias:v1": semAulaRepetida } };
+const depoisDaJuncao = (key, l) => (SINC.depois[key] ? SINC.depois[key](l) : l);
 if (db && window.MTYSync) {
   const getOrig = storageFirestore.get, setOrig = storageFirestore.set;
   const lerLista = (v) => { try { const l = JSON.parse(v); return Array.isArray(l) ? l : null; } catch { return null; } };
@@ -370,7 +388,7 @@ if (db && window.MTYSync) {
         let nuvem = [], existe = false, principal = null;
         if (emPartes) { const r = await lerPartesNuvem(dados, key, (x) => tx.get(x)); existe = r.texto != null; nuvem = existe ? (lerLista(r.texto) || []) : []; principal = r.principal; }
         else { const snap = await tx.get(ref); existe = snap.exists; nuvem = existe ? (lerLista(snap.data().value) || []) : []; }
-        juntada = window.MTYSync.mesclar(SINC.base[key] || [], local, nuvem);
+        juntada = depoisDaJuncao(key, window.MTYSync.mesclar(SINC.base[key] || [], local, nuvem));
         /* a lista antiga (v2) ainda não virou partes: grava a v3 mesmo sem mudança */
         nuvemIgual = existe && (!emPartes || principal) && JSON.stringify(nuvem) === JSON.stringify(juntada);
         if (nuvemIgual) return;
@@ -382,7 +400,7 @@ if (db && window.MTYSync) {
       });
       SINC.base[key] = juntada;
       /* a nuvem tinha coisas de outros professores: a tela passa a mostrá-las */
-      if (JSON.stringify(juntada) !== JSON.stringify(local) && SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(local, atual, juntada));
+      if (JSON.stringify(juntada) !== JSON.stringify(local) && SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => depoisDaJuncao(key, window.MTYSync.mesclar(local, atual, juntada)));
       return { key, value: JSON.stringify(juntada), shared: true };
     } catch (e) { console.error("Firestore set (junção):", e); anotarErroNuvem(key, value, e); return null; }
   };
@@ -402,7 +420,7 @@ if (db && window.MTYSync) {
         if (!nuvem || JSON.stringify(nuvem) === JSON.stringify(SINC.base[key])) return;
         const baseAntes = SINC.base[key] || [];
         SINC.base[key] = nuvem;
-        if (SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(baseAntes, atual, nuvem));
+        if (SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => depoisDaJuncao(key, window.MTYSync.mesclar(baseAntes, atual, nuvem)));
       }, (e) => console.error("Firestore observar (partes):", e));
     }
     return dados.doc(key).onSnapshot((snap) => {
@@ -412,7 +430,7 @@ if (db && window.MTYSync) {
       const baseAntes = SINC.base[key] || [];
       SINC.base[key] = nuvem;
       /* junta com a tela mais recente (não com uma cópia que pode estar um passo atrás) */
-      if (SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(baseAntes, atual, nuvem));
+      if (SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => depoisDaJuncao(key, window.MTYSync.mesclar(baseAntes, atual, nuvem)));
     }, (e) => console.error("Firestore observar:", e));
   };
 }
@@ -20133,6 +20151,22 @@ function anotarExcluida(lista, chave) {
   const limite = somaDiasISO(dataISO(new Date()), -180);
   return Array.from(new Set([...(lista || []).filter((x) => String(x).slice(0, 10) >= limite), chave]));
 }
+/* Aulas fixas futuras (ainda "agendada", sem presença marcada) cuja série não existe mais: o horário saiu da ficha do jogador ou da
+   turma, ou o jogador/turma saiu. Devolve os ids. Aula de hoje só sai se ainda não começou (horaAgora "HH:MM"). */
+function ocorrenciasSemHorarioFixo(ocorrencias, alunos, turmas, hoje, horaAgora) {
+  const chaves = new Set();
+  (alunos || []).forEach((a) => a && (a.horarios || []).forEach((h) => chaves.add(chaveRecorrencia("individual", a.id, h.dia, h.hora))));
+  (turmas || []).forEach((t) => t && (t.horarios || []).forEach((h) => chaves.add(chaveRecorrencia("turma", t.id, h.dia, h.hora))));
+  const fora = new Set();
+  (ocorrencias || []).forEach((o) => {
+    if (!o || !o.recorrenciaChave || (o.origemTipo !== "individual" && o.origemTipo !== "turma")) return;
+    if (o.status !== "agendada" || !o.data || o.data < hoje) return;
+    if (o.data === hoje && horaAgora && String(o.horaInicio || "") <= horaAgora) return;
+    if (o.presencas && Object.keys(o.presencas).length) return;
+    if (!chaves.has(o.recorrenciaChave)) fora.add(o.id);
+  });
+  return fora;
+}
 function mexerNaOrigem({ oc, turmas, setTurmas, alunos, setAlunos, mudar }) {
   if (oc.origemTipo === "turma" && setTurmas) setTurmas((lista) => lista.map((t) => (t.id === oc.origemId ? mudar(t) : t)));
   else if (oc.origemTipo === "individual" && setAlunos) setAlunos((lista) => lista.map((a) => (a.id === oc.origemId ? mudar(a) : a)));
@@ -21274,12 +21308,11 @@ function TelaGradeAulas({ alunos, setAlunos, turmas, setTurmas, quadras, bloquei
     if (!setOcorrencias) return;
     const hoje = dataISO(new Date());
     const chaves = new Set(dias.map((d) => chaveRecorrencia(tipo, origemId, d, horaInicio)));
-    setOcorrencias(ocorrencias.map((o) => (
-      chaves.has(o.recorrenciaChave) && o.status === "agendada" && o.data >= hoje
-    ) ? { ...o, status: "cancelada", motivoCancelamento: "Recorrência encerrada em Horários recorrentes.", atualizadoEm: new Date().toISOString() } : o));
+    /* 26/11/2026: as próximas saem da agenda (antes viravam "canceladas" e apareciam como reposição a fazer) */
+    setOcorrencias(ocorrencias.filter((o) => !(chaves.has(o.recorrenciaChave) && o.status === "agendada" && o.data >= hoje && !(o.presencas && Object.keys(o.presencas).length))));
   }
   function encerrarSerieAula(serie) {
-    if (!confirm('Encerrar "' + serie.nome + '" (' + diasTexto(serie.dias) + " · " + serie.horaInicio + ")? Aulas já realizadas e o histórico continuam guardados; as próximas datas ainda não preenchidas são canceladas.")) return;
+    if (!confirm('Encerrar "' + serie.nome + '" (' + diasTexto(serie.dias) + " · " + serie.horaInicio + ")? Aulas já realizadas e o histórico continuam guardados; as próximas aulas ainda não dadas saem da agenda.")) return;
     const filtro = (h) => !(serie.dias.includes(h.dia) && h.hora === serie.horaInicio && (h.quadraId || "") === serie.quadraId);
     if (serie.tipo === "turma") setTurmas(turmas.map((t) => (t.id === serie.origemId ? { ...t, horarios: (t.horarios || []).filter(filtro) } : t)));
     else setAlunos(alunos.map((a) => (a.id === serie.origemId ? { ...a, horarios: (a.horarios || []).filter(filtro) } : a)));
@@ -25700,7 +25733,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-12-marco-zero";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-agenda-horarios";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
@@ -25709,7 +25742,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Marco zero em 1º de dezembro", d: "A partir de 1º de dezembro de 2026 o Team Yoda roda tudo pelo app, e a contagem começa do zero: aulas do mês, faltas, canceladas, aulas sem registro, reposições e o fechamento para a cobrança e o pagamento dos professores contam só de 1º de dezembro em diante, sempre pelo mês (o planejamento segue como está, em paralelo). As reposições de antes foram zeradas: créditos ainda não usados e pedidos pendentes saem da lista (ficam guardados, nada foi apagado); reposição que já estava marcada na Agenda continua valendo. A agenda, os registros e os planejamentos de antes continuam guardados.", onde: "Agenda, Relatório de aulas e reposições", aba: "agenda" },
+  { novo: true, t: "Agenda: horário tirado sai de verdade", d: "Quando o horário fixo sai da ficha do jogador ou da turma, as próximas aulas daquele horário saem da Agenda (antes ficavam lá e conflitavam com a turma). Em Apagar da agenda › Esta e as próximas, as aulas das semanas seguintes agora somem e não voltam: a Agenda passou a ser juntada entre os aparelhos, então um celular com a Agenda antiga aberta não traz de volta o que foi apagado em outro. Aulas já dadas, com presença marcada ou que já começaram ficam como estão. Encerrar uma série em Horários recorrentes também tira as próximas da Agenda, em vez de deixá-las como canceladas contando como reposição.", onde: "Agenda", aba: "agenda" },
+  { t: "Marco zero em 1º de dezembro", d: "A partir de 1º de dezembro de 2026 o Team Yoda roda tudo pelo app, e a contagem começa do zero: aulas do mês, faltas, canceladas, aulas sem registro, reposições e o fechamento para a cobrança e o pagamento dos professores contam só de 1º de dezembro em diante, sempre pelo mês (o planejamento segue como está, em paralelo). As reposições de antes foram zeradas: créditos ainda não usados e pedidos pendentes saem da lista (ficam guardados, nada foi apagado); reposição que já estava marcada na Agenda continua valendo. A agenda, os registros e os planejamentos de antes continuam guardados.", onde: "Agenda, Relatório de aulas e reposições", aba: "agenda" },
   { t: "Jogadores voltaram a salvar", d: "A lista de jogadores da academia tinha chegado ao limite de 1 MB que a nuvem aceita num arquivo só, e por isso o cadastro de jogador novo e as mudanças nas fichas, planos e registros de aula deixaram de ser salvos. Agora a lista é guardada em partes e não tem mais esse limite. Se alguma aula ou ficha dos últimos dias não aparece, registre de novo.", onde: "Jogadores", aba: "alunos" },
   { t: "Aviso quando algo não salva na nuvem", d: "Se a nuvem recusar uma mudança nos jogadores ou nas turmas (por exemplo, o cadastro de um jogador novo), aparece um aviso vermelho no topo dizendo o que não foi salvo e por quê, com o botão Tentar de novo. Antes isso acontecia em silêncio e o jogador sumia ao abrir o app de novo. O cadastro de jogador novo no Team Yoda também não é mais barrado por limite de plano nem por data de licença.", onde: "Topo do app", aba: "alunos" },
   { so: "financeiro", t: "Gestão só na Central, com acesso total", d: "O painel de gestão do Team Yoda agora fica só dentro da Central, no botão Gestão do Team Yoda, sem precisar entrar de novo (Voltar para a Central no menu); teamyoda.com.br/gestao leva para lá, e a coordenação não entra mais na gestão. O Richard e o administrativo veem todas as telas: Quadras, Horários recorrentes, Clientes, Torneios, Eventos (inscrições, pagamentos e planilha), Aulas da equipe, Relatório de aulas, Padrão de atendimento e Equipe da organização (aprovar, promover e remover professores), além do Financeiro (Richard) e da Cobrança (administrativo). O sino do painel mostra as reservas, as inscrições e os pedidos de cadastro, e cada inscrição nova num evento do site chega como aviso no celular pela Central (tipo Inscrições novas nos eventos do site, em Avisos). No app dos professores nada mudou.", onde: "Central › Gestão do Team Yoda", aba: "gestao-inicio" },
@@ -28892,6 +28926,17 @@ function App() {
   const turmasRef = useRef(turmas);
   useEffect(() => { alunosRef.current = alunos; }, [alunos]);
   useEffect(() => { turmasRef.current = turmas; }, [turmas]);
+  const ocorrenciasRef = useRef(ocorrencias);
+  useEffect(() => { ocorrenciasRef.current = ocorrencias; }, [ocorrencias]);
+  /* aula fixa futura cujo horário saiu da ficha do jogador ou da turma (26/11/2026, "quando a gente retira o horário da aula e o
+     aluno está numa turma, continua conflitando o horário na agenda"): sai da Agenda, se ainda não tem nada marcado */
+  useEffect(() => {
+    if (carregando || carregandoTurmas || carregandoOcorrencias || !prontoRef.current.alunos || !prontoRef.current.turmas || !prontoRef.current.ocorrencias) return;
+    const agora = new Date(), hhmm = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
+    const fora = ocorrenciasSemHorarioFixo(ocorrencias, alunos, turmas, dataISO(agora), hhmm);
+    if (fora.size) setOcorrencias((l) => l.filter((o) => !fora.has(o.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alunos, turmas, ocorrencias, carregando, carregandoTurmas, carregandoOcorrencias]);
   /* recebe, ao vivo, o que os outros professores registram (sessões, observações, alunos novos) */
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual) || !window.storage.observar) return undefined;
@@ -28905,7 +28950,11 @@ function App() {
     /* eventos (19/11/2026): as inscrições do site chegam com a tela aberta, e salvar o evento não apaga as que chegaram */
     SINC.aoMudar["mty:eventos:v1"] = (fn) => setEventos((prev) => { const novo = fn(prev); return JSON.stringify(novo) === JSON.stringify(prev) ? prev : novo; });
     SINC.pronto["mty:eventos:v1"] = () => !!prontoRef.current.eventos;
-    ["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1"].forEach((k) => window.storage.observar(k).then((f) => { if (encerrado) f(); else desfazer.push(f); }));
+    /* agenda (26/11/2026): o que outro aparelho marca, apaga ou gera chega sem recarregar, e gravar não desfaz o que ele fez */
+    SINC.aoMudar["mty:ocorrencias:v1"] = (fn) => setOcorrencias((prev) => { const novo = fn(prev); return JSON.stringify(novo) === JSON.stringify(prev) ? prev : novo; });
+    SINC.local["mty:ocorrencias:v1"] = () => ocorrenciasRef.current;
+    SINC.pronto["mty:ocorrencias:v1"] = () => !!prontoRef.current.ocorrencias;
+    ["mty:alunos:v2", "mty:turmas:v1", "mty:eventos:v1", "mty:ocorrencias:v1"].forEach((k) => window.storage.observar(k).then((f) => { if (encerrado) f(); else desfazer.push(f); }));
     return () => { encerrado = true; desfazer.forEach((f) => f()); };
   }, [autenticado, orgAtual]);
   useEffect(() => {
