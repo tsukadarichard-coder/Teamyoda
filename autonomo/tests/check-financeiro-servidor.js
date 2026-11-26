@@ -56,9 +56,9 @@ const chamar = (metodo, token, extra) => fn.handler(Object.assign({ httpMethod: 
   assert.strictEqual(ty.mes.despesas.fixas.total, 0, "aluguel zerado só neste mês"); assert.strictEqual(ty.mes.despesas.manuais, 99);
   assert.strictEqual(rc.mes.receitas.quadras.total, 240, "39 Ranch: 2 h de quadra a 120");
   assert.strictEqual(r.corpo.geral.entradas, 590, "visão geral soma as duas");
-  assert.deepStrictEqual(r.corpo.historicoGeral.map((h) => h.mes), ["2026-11"], "histórico começa em novembro de 2026");
+  assert.deepStrictEqual(r.corpo.historicoGeral.map((h) => h.mes), ["2026-11"], "antes do início, o histórico mostra só o mês pedido");
   const jan = await chamar("GET", "dono", { queryStringParameters: { mes: "2027-02" } });
-  assert.deepStrictEqual(jan.corpo.historicoGeral.map((h) => h.mes), ["2026-11", "2026-12", "2027-01", "2027-02"], "depois, os meses desde o início");
+  assert.deepStrictEqual(jan.corpo.historicoGeral.map((h) => h.mes), ["2026-12", "2027-01", "2027-02"], "depois, os meses desde o início (dezembro de 2026, marco zero do Team Yoda)");
   assert(ty.catalogo.turmas[0].membros.length === 2 && ty.catalogo.professores.some((x) => x.nome === "Leo"), "catálogo para precificar");
   assert(!JSON.stringify(r.corpo).includes("registros"), "não devolve os cadastros inteiros");
   console.log("check-financeiro-servidor: ok");

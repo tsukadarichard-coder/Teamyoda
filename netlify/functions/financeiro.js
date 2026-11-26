@@ -98,10 +98,14 @@ function totais(r) { return { mes: r.mes, entradas: r.entradas, saidas: r.saidas
 /* o que a parte administrativa vê: cobrar e pagar professor, sem resultado, margem, despesas e imposto */
 function visaoAdmin(org, nome, dados, resumo, config) {
   const alunoPor = new Map(dados.alunos.map((a) => [a.id, a])), cob = config.cobranca || {};
+  /* mensalidade de N aulas (26/11/2026): a regra e o saldo de cada aluno, só para mostrar (o valor não muda) */
+  QA_MARCO.definirMarco(dados.marco || "");
+  const saldos = QA_MARCO.saldosDeAulas({ ocorrencias: dados.ocorrencias || [], alunos: dados.alunos, turmas: dados.turmas || [], hoje: QA_MARCO.hojeSP() });
   const linha = (l, onde) => {
-    const a = alunoPor.get(l.alunoId) || {}, c = cob[l.alunoId] || {};
+    const a = alunoPor.get(l.alunoId) || {}, c = cob[l.alunoId] || {}, sa = saldos[l.alunoId];
     return { chave: l.chave, alunoId: l.alunoId, nome: l.nome, onde, valor: l.valor, desconto: l.desconto || 0, recebido: !!l.recebido, venc: l.venc || null, forma: l.forma || "",
-      pagador: c.pagador || a.nomeResponsavel || "", contato: a.telefoneResponsavel || a.telefone || "", obs: c.obs || "" };
+      pagador: c.pagador || a.nomeResponsavel || "", contato: a.telefoneResponsavel || a.telefone || "", obs: c.obs || "",
+      aulas: sa ? { pagasMes: sa.pagasMes, credito: sa.credito, aRepor: sa.aRepor, texto: QA_MARCO.textoSaldo(sa) } : null };
   };
   const cobrar = resumo.receitas.mensalidades.turmas.flatMap((t) => t.alunos.map((l) => linha(l, t.nome)))
     .concat(resumo.receitas.pacotes.alunos.map((l) => linha(l, "Pacote individual")))

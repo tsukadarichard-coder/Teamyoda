@@ -211,6 +211,80 @@
     return aulas.sort((a, b) => (a.data + (a.horaInicio || "99")).localeCompare(b.data + (b.horaInicio || "99")));
   }
 
+  /* ── Mensalidade de N aulas (26/11/2026, pedido do Richard: "a mensalidade ser referente a 3 aulas ao invés de 4... tem mês
+     que nós temos 5 aulas. Essas aulas excedentes ficam como crédito para eventuais reposições"). Por aluno: aluno.aulasPagasMes
+     (N, vazio = como sempre foi) a partir de aluno.aulasPagasDesde ("AAAA-MM"; o marco zero manda se for depois). Cada mês o
+     aluno tem N aulas pagas; toda aula dada a ele (presente, inclusive reposição; experimental não) passa a contar. Saldo do mês:
+       feitas ≥ N → feitas − N (aulas a mais = crédito da academia com o aluno);
+       feitas < N → o que ainda dá para fazer no mês (agendadas, sem registro e os horários fixos que a Agenda ainda não abriu)
+                    entra antes: só fica negativo (aulas a repor) o que não cabe mais.
+     O saldo acumula de um mês para o outro e a falta é abatida sozinha do crédito (decisões do Richard em 26/11/2026).
+     Só conta: nada aqui grava nem muda valor de mensalidade. ── */
+  function aulasPagas(al) { const n = Math.round(Number(al && al.aulasPagasMes)); return n >= 1 && n <= 31 ? n : 0; }
+  function inicioDasAulasPagas(al) {
+    let d = /^\d{4}-\d{2}/.test(String((al && al.aulasPagasDesde) || "")) ? String(al.aulasPagasDesde).slice(0, 7) : "";
+    if (marcoAtual && (!d || d < marcoAtual.slice(0, 7))) d = marcoAtual.slice(0, 7);
+    return d;
+  }
+  function saldosDeAulas({ ocorrencias, alunos, turmas, hoje, ids, extras }) {
+    hoje = hoje || isoUTC(new Date());
+    const mesHoje = hoje.slice(0, 7), out = {};
+    const alvo = (alunos || []).filter((a) => a && aulasPagas(a) && (!ids || ids.includes(a.id)));
+    if (!alvo.length) return out;
+    const comeco = (a) => inicioDasAulasPagas(a) || mesHoje;
+    const desde = alvo.map(comeco).sort()[0];
+    const fimMes = periodoDoMes(mesHoje).fim;
+    const aulas = desde > mesHoje ? [] : aulasDoPeriodo({ ocorrencias, alunos, turmas, inicio: periodoDoMes(desde).inicio, fim: fimMes, hoje, extras })
+      .filter((a) => a.status !== "ignorada" && a.tipo !== "experimental");
+    alvo.forEach((al) => {
+      const n = aulasPagas(al), ini = comeco(al), meses = [];
+      if (ini <= mesHoje) for (let m = ini; m <= mesHoje; m = somarMes(m, 1)) meses.push(m);
+      const porMes = new Map(meses.map((m) => [m, { mes: m, rotulo: nomeDoMes(m), pagas: n, feitas: 0, reposicoes: 0, faltas: 0, canceladas: 0, semRegistro: 0, aFazer: 0, saldo: 0 }]));
+      const chaves = new Set();
+      aulas.forEach((a) => {
+        if (!a.membros.includes(al.id)) return;
+        const l = porMes.get(a.data.slice(0, 7)); if (!l) return;
+        chaves.add(a.origemTipo + ":" + a.origemId + "|" + a.data);
+        const p = presencaNaAula(a, al.id);
+        if (p === "presente") { l.feitas++; if (a.tipo === "reposicao") l.reposicoes++; }
+        else if (p === "falta") l.faltas++;
+        else if (p === "cancelada") l.canceladas++;
+        else if (p === "pendente") l.semRegistro++;
+        else if (p === "agendada") l.aFazer++;
+      });
+      /* horários fixos (do jogador e das turmas dele) em dias sem aula na Agenda: antes de hoje contam como "sem registro" e de
+         hoje em diante como "a fazer" — nos dois casos ainda podem virar aula, então nunca criam dívida sozinhos */
+      const fixos = [];
+      (al.horarios || []).forEach((h) => fixos.push({ k: "individual:" + al.id, dia: Number(h.dia) }));
+      (turmas || []).forEach((t) => { if (t && (t.membros || []).includes(al.id)) (t.horarios || []).forEach((h) => fixos.push({ k: "turma:" + t.id, dia: Number(h.dia) })); });
+      if (fixos.length && meses.length) {
+        for (let d = periodoDoMes(meses[0]).inicio; d <= fimMes; d = somaDias(d, 1)) {
+          if (marcoAtual && d < marcoAtual) continue;
+          const sem = new Date(d + "T12:00:00Z").getUTCDay(), l = porMes.get(d.slice(0, 7));
+          fixos.forEach((f) => { if (f.dia === sem && !chaves.has(f.k + "|" + d)) { chaves.add(f.k + "|" + d); if (d < hoje) l.semRegistro++; else l.aFazer++; } });
+        }
+      }
+      const atual = porMes.get(mesHoje);
+      let saldo = 0, feitas = 0;
+      const lista = meses.map((m) => porMes.get(m)).map((l) => {
+        l.saldo = l.feitas >= n ? l.feitas - n : Math.min(0, l.feitas + l.semRegistro + l.aFazer - n);
+        saldo += l.saldo; feitas += l.feitas;
+        return l;
+      });
+      out[al.id] = {
+        alunoId: al.id, pagasMes: n, desde: ini, meses: lista, feitas, feitasNoMes: atual ? atual.feitas : 0, aFazerNoMes: atual ? atual.aFazer + atual.semRegistro : 0,
+        saldo, credito: Math.max(0, saldo), aRepor: Math.max(0, -saldo),
+      };
+    });
+    return out;
+  }
+  function saldoDeAulas(o) { return saldosDeAulas({ ...o, ids: [o.alunoId] })[o.alunoId] || null; }
+  function textoSaldo(s) {
+    if (!s) return "";
+    return "Mensalidade de " + s.pagasMes + (s.pagasMes === 1 ? " aula" : " aulas") + " por mês · " +
+      (s.credito ? s.credito + (s.credito === 1 ? " aula" : " aulas") + " de crédito da academia" : s.aRepor ? s.aRepor + (s.aRepor === 1 ? " aula" : " aulas") + " para repor" : "em dia");
+  }
+
   function creditoVivo(c) { return c && c.status !== "cancelado" && c.status !== "vencido"; }
 
   /* Fechamento do mês. `soProfessor` (uid) restringe ao que é dele: aulas em que foi titular, auxiliar ou quem deu. */
@@ -270,9 +344,13 @@
       }
     }));
     const porAluno = [...porAlunoMap.values()].sort((x, y) => x.nome.localeCompare(y.nome));
+    const saldos = saldosDeAulas({ ocorrencias, alunos, turmas, hoje, ids: porAluno.map((l) => l.id) });
     porAluno.forEach((l) => {
       l.aRemarcar = l.perdidas.filter((p) => p.sugerida && !p.temCredito).length + l.creditos.aguardando + l.creditos.disponiveis;
       l.faltasSemReposicao = l.perdidas.filter((p) => !p.sugerida && !p.temCredito).length;
+      /* mensalidade de N aulas: a falta é abatida das aulas a mais; a remarcar fica só o que o saldo deve */
+      l.saldoAulas = saldos[l.id] || null;
+      if (l.saldoAulas) { l.aRemarcar = l.saldoAulas.aRepor; l.faltasSemReposicao = 0; }
       totais.faltasAlunos += l.faltas;
       totais.aRemarcar += l.aRemarcar;
     });
@@ -377,7 +455,17 @@
         coberta: cobertaRepo || cobertaCredito, dispensada: !!dispensada,
       });
     });
-    return (todas ? lista : lista.filter((p) => !p.coberta && !p.dispensada)).sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+    lista.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+    if (tipo !== "turma" && aulasPagas(ent)) {
+      const s = saldoDeAulas({ ocorrencias, alunos, turmas, hoje, alunoId: id });
+      let deve = s ? s.aRepor : 0;
+      for (let i = lista.length - 1; i >= 0; i--) {
+        const p = lista[i];
+        if (p.coberta || p.dispensada) continue;
+        if (deve > 0) deve--; else p.cobertaPeloSaldo = true;
+      }
+    }
+    return todas ? lista : lista.filter((p) => !p.coberta && !p.dispensada && !p.cobertaPeloSaldo);
   }
   /* aulas a repor da academia toda; a aula de turma cancelada entra uma vez só (na turma), não em cada aluno */
   function todasPendentes(o) {
@@ -508,6 +596,7 @@
     periodoDoMes, nomeDoMes, somarMes, criadoEmISO, indiceRegistros, chaveDaOcorrencia, membrosDaAula, statusDaAula,
     presencaNaAula, aulasDoPeriodo, fechamento, csvAlunos, csvProfessores, csvAulas, htmlAluno, htmlGeral, dataBR, diaSemanaCurto,
     MARCOS_ZERO, marcoDe, marcoVigente, hojeSP, definirMarco, marco, aplicarMarcoZero,
+    aulasPagas, inicioDasAulasPagas, saldosDeAulas, saldoDeAulas, textoSaldo,
     JANELA_DIAS, SITUACAO_REPO, periodo, navegarPeriodo, somaDias, pendentesDeReposicao, todasPendentes, contagemPendentes, textoPerdida, textoRepoe, reposicoesDoPeriodo,
   };
   if (typeof module === "object" && module.exports) module.exports = api;
