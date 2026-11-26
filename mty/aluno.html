@@ -19,7 +19,7 @@
   *{box-sizing:border-box}
   body{margin:0; background:var(--papel); color:var(--tinta);
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
-  .topo{background:var(--verm); height:7px}
+  .topo{background:#103B32; height:7px}
   .wrap{max-width:560px; margin:0 auto; padding:0 18px}
   header{padding:22px 0 10px}
   h1{font-family:Georgia,serif; font-size:24px; margin:10px 0 2px}
@@ -58,21 +58,31 @@
   .cel.ocupado{background:#EFE7E4; color:var(--cinza); cursor:default; text-decoration:line-through}
   .cel.sel{background:var(--verde); color:#fff; border-color:var(--verde)}
   /* painel com abas (26/11/2026): resumo no topo e as seções em abas fixas no alto da tela */
-  .abas{position:sticky; top:0; z-index:20; display:flex; gap:2px; overflow-x:auto; background:var(--papel); margin:10px -18px 0; padding:6px 18px 0;
+  .abas{position:sticky; top:0; z-index:20; display:flex; gap:2px; overflow-x:auto; background:#fff; margin:0 -18px; padding:2px 18px 0;
     border-bottom:1px solid var(--linha); scrollbar-width:none}
   .abas::-webkit-scrollbar{display:none}
   .aba{flex:1 0 auto; font:600 13.5px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--cinza); background:none; border:none;
     border-bottom:3px solid transparent; padding:10px 10px 9px; cursor:pointer; min-height:44px; white-space:nowrap; position:relative}
-  .aba[aria-selected="true"]{color:var(--tinta); border-bottom-color:var(--verm)}
+  .aba[aria-selected="true"]{color:#103B32; border-bottom-color:#69B32A}
   .aba .ponto{position:absolute; top:8px; right:2px; width:7px; height:7px; border-radius:999px; background:var(--verm)}
+  /* estilo novo dos painéis (26/11/2026): cabeçalho verde com a saudação e a próxima aula, cartões brancos */
+  .cabeca{background:#103B32; color:#fff; margin:0 -18px; padding:20px 18px 18px; display:flex; flex-direction:column; gap:12px}
+  .cabeca .marca{display:flex; align-items:center; gap:10px; font-size:12.5px; color:#A9C4B8}
+  .cabeca .marca b{width:32px; height:32px; border-radius:10px; background:#69B32A; color:#103B32; display:inline-flex; align-items:center; justify-content:center; font-size:13px}
+  .cabeca h1{color:#fff; font-size:25px; margin:0}
+  .cabeca .sub{color:#C9DDD5}
+  .cabeca .prox{background:#fff; color:var(--tinta); border-radius:16px; padding:13px 14px; display:flex; align-items:center; gap:12px}
+  .cabeca .dia{flex:0 0 52px; height:54px; border-radius:12px; background:#E6F2DC; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#103B32}
+  .cabeca .dia span{font-size:10.5px; font-weight:700; color:#2F6B1A; letter-spacing:.04em}
+  .cabeca .dia strong{font-family:Georgia,serif; font-size:21px; line-height:1}
   .resumo .prox-rot{font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--cinza)}
   .resumo .prox-val{font-family:Georgia,serif; font-size:20px; font-weight:700; margin:2px 0 1px}
   .resumo .prox-det{font-size:13px; color:var(--cinza)}
   .resumo-grade{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin-top:12px}
-  .caixa{display:block; width:100%; text-align:left; font:inherit; color:inherit; background:var(--papel); border:1px solid var(--linha); border-radius:10px;
-    padding:9px 11px; cursor:pointer; min-height:44px}
+  .caixa{display:block; width:100%; text-align:left; font:inherit; color:inherit; background:#fff; border:1px solid var(--linha); border-radius:14px;
+    padding:11px 12px; cursor:pointer; min-height:44px}
   .caixa .c-rot{font-size:11.5px; color:var(--cinza)}
-  .caixa .c-val{font-size:20px; font-weight:700; line-height:1.2; overflow-wrap:anywhere}
+  .caixa .c-val{font-family:Georgia,serif; font-size:24px; font-weight:700; line-height:1.2; overflow-wrap:anywhere; margin-top:2px}
   .link-aba{background:none; border:none; padding:8px 0 0; font:600 13px -apple-system,sans-serif; color:var(--tinta); text-decoration:underline; cursor:pointer; min-height:44px}
   .pedido-pendente{background:#FDF6E7; border:1px solid #C9A227; border-radius:4px; padding:10px 12px; font-size:12.5px; margin-top:8px}
 </style>
@@ -574,11 +584,10 @@ function todosHorarios(agenda) {
     const subtitulo = d.temPlano ? (d.tipoPlano || '') : d.planoRascunho
       ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
       : 'Ainda não há um plano montado para você.';
-    let html = '<header style="padding-bottom:4px"><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(subtitulo) + '</div>' +
-      (d.temPlano && d.prioridade ? '<p class="sub" style="margin:2px 0 0">' + escapar(d.prioridade) + '</p>' : '') + '</header>';
+    let html = cabecalhoAluno(d, subtitulo);
     if (DA_AREA) html = painelMinhaArea() + html; /* quem veio da Área do aluno: o caminho de volta fica no topo */
     html += abasHtml(d);
-    html += secao('inicio', cartaoResumo(d) + painelNovidadesAluno(d) + painelUltimaConquista(d) + painelProximasCurtas(d) + '<div id="ql-avisos-celular"></div>');
+    html += secao('inicio', cartaoResumo(d) + painelCicloAnel(d) + painelNovidadesAluno(d) + painelUltimaConquista(d) + painelProximasCurtas(d) + '<div id="ql-avisos-celular"></div>');
     html += secao('aulas', painelMinhasAulas(d) + painelSaldoAulas(d) + painelHistoricoAulas(d), 'Nenhuma aula marcada ainda.');
     let plano = '';
     if (d.temPlano) {
@@ -1147,21 +1156,36 @@ function todosHorarios(agenda) {
   function secao(aba, html, vazio) {
     return '<section data-secao="' + aba + '"' + (ui.aba === aba ? '' : ' hidden') + '>' + (html || '<div class="painel"><p class="desc" style="margin:0">' + escapar(vazio || '') + '</p></div>') + '</section>';
   }
+  /* cabeçalho verde: saudação, o plano e a próxima aula da Agenda (vale em todas as abas) */
+  function cabecalhoAluno(d, subtitulo) {
+    const prox = proximaDaAgenda(d, false);
+    const primeiro = String(d.nome || '').trim().split(' ')[0];
+    const DS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    let h = '<header class="cabeca" data-cabeca-aluno><div class="marca"><b>' + (org === '39-ranch' ? '39' : 'TY') + '</b>Meu plano' + (d.academiaNome ? ' · ' + escapar(d.academiaNome) : '') + '</div>' +
+      '<div><h1>Olá, ' + escapar(primeiro || d.nome || '') + '</h1><div class="sub">' + escapar(subtitulo) + (d.temPlano && d.prioridade ? ' · ' + escapar(d.prioridade) : '') + '</div></div>';
+    if (prox) {
+      const dt = new Date(prox.data + 'T12:00:00');
+      h += '<div class="prox" data-resumo-proxima><div class="dia"><span>' + DS[dt.getDay()] + '</span><strong>' + prox.data.slice(8, 10) + '</strong></div>' +
+        '<div style="min-width:0"><div class="prox-rot" style="font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--cinza)">PRÓXIMA AULA</div>' +
+        '<div style="font-family:Georgia,serif;font-weight:700;font-size:17px">' + escapar((prox.horaInicio ? prox.horaInicio + ' · ' : '') + (prox.titulo || 'Aula')) + '</div>' +
+        '<div style="font-size:12.5px;color:var(--cinza)">' + escapar([diaEData(prox.data), prox.quadra, prox.professor ? 'Prof. ' + String(prox.professor).replace(/^prof(\.|essora?)\s*/i, '') : ''].filter(Boolean).join(' · ')) + '</div></div></div>';
+    } else h += '<div class="prox" data-resumo-proxima><div style="font-size:13.5px;color:var(--cinza)">Nenhuma aula marcada nos próximos 14 dias.</div></div>';
+    return h + '</header>';
+  }
   function cartaoResumo(d) {
-    const prox = proximaDaAgenda(d, false), s = d.saldoAulas, h = d.historicoAulas;
-    let html = '<div class="painel resumo" data-resumo><div class="prox-rot">Próxima aula</div>';
-    html += prox
-      ? '<div class="prox-val">' + escapar(diaEData(prox.data)) + (prox.horaInicio ? ' · ' + escapar(prox.horaInicio) : '') + '</div>' +
-        '<div class="prox-det">' + escapar([prox.titulo || 'Aula', prox.quadra, prox.professor ? 'Prof. ' + String(prox.professor).replace(/^prof(\.|essora?)\s*/i, '') : ''].filter(Boolean).join(' · ')) + '</div>'
-      : '<div class="prox-det" style="margin-top:4px">Nenhuma aula marcada nos próximos 14 dias.</div>';
+    const s = d.saldoAulas, h = d.historicoAulas;
+    let html = '<div class="resumo" data-resumo style="margin-top:16px">';
     const caixas = [];
     if (s) caixas.push(['aulas', 'Aulas feitas no mês', s.feitasNoMes]);
     else if (h) caixas.push(['aulas', 'Aulas feitas no mês', h.doMes.feitas]);
     if (s) caixas.push(s.aRepor ? ['aulas', 'Para repor', s.aRepor, 'var(--verm)'] : ['aulas', 'Crédito de aulas', s.credito, s.credito ? 'var(--verde)' : '']);
     else if (h && h.doMes.faltas) caixas.push(['aulas', 'Faltas no mês', h.doMes.faltas]);
-    if (d.temPlano && d.totalAulas) caixas.push(['plano', 'Ciclo do plano', Math.round(100 * d.aulasFeitas / d.totalAulas) + '%']);
+    /* presença nas últimas aulas (60 dias): o ciclo do plano tem o anel logo abaixo */
+    const pres = h ? h.ultimas.filter(function (x) { return x.presenca === 'presente'; }).length : 0, falt = h ? h.ultimas.filter(function (x) { return x.presenca === 'falta'; }).length : 0;
+    if (pres + falt) caixas.push(['aulas', 'Presença', Math.round(100 * pres / (pres + falt)) + '%']);
+    else if (d.temPlano && d.totalAulas) caixas.push(['plano', 'Ciclo do plano', Math.round(100 * d.aulasFeitas / d.totalAulas) + '%']);
     if (d.nivel && d.nivelAvaliado !== false) { const n = NIVEIS_ESCADA.find(function (x) { return x.v === d.nivel; }); caixas.push(['evolucao', 'Nível no método', d.nivel + (n ? ' · ' + n.nome : '')]); }
-    if (caixas.length) html += '<div class="resumo-grade">' + caixas.map(function (c) {
+    if (caixas.length) html += '<div class="resumo-grade" style="margin-top:0">' + caixas.map(function (c) {
       return '<button type="button" class="caixa" data-ir-aba="' + c[0] + '"><div class="c-rot">' + escapar(c[1]) + '</div><div class="c-val"' + (c[3] ? ' style="color:' + c[3] + '"' : '') + '>' + escapar(String(c[2])) + '</div></button>';
     }).join('') + '</div>';
     return html + '</div>';
@@ -1173,9 +1197,23 @@ function todosHorarios(agenda) {
     let txt = marcos[0] ? marcos[0].texto : '', quando = marcos[0] ? marcos[0].data : '';
     if (!txt) { const r = (d.relatoriosCiclo || [])[0]; if (r && r.texto && r.texto.conquistas && r.texto.conquistas[0]) { txt = r.texto.conquistas[0]; quando = r.periodo && r.periodo.ate; } }
     if (!txt) return '';
-    return '<div class="painel" data-ultima-conquista style="border-left:4px solid var(--verde)"><h2>☆ Última conquista</h2>' +
-      '<p style="margin:0;font-size:14px">' + escapar(txt) + '</p>' + (quando ? '<p class="aviso-mini" style="margin-top:4px">' + escapar(dataCurta(quando)) + '</p>' : '') +
-      '<button type="button" class="link-aba" data-ir-aba="evolucao">Ver relatórios</button></div>';
+    return '<div class="painel" data-ultima-conquista style="background:#103B32;border-color:#103B32;color:#fff;border-radius:16px">' +
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:#69B32A">☆ ÚLTIMA CONQUISTA' + (quando ? ' · ' + escapar(dataDiaMes(quando)) : '') + '</div>' +
+      '<p style="margin:6px 0 0;font-size:15px;line-height:1.45">' + escapar(txt) + '</p>' +
+      '<button type="button" class="link-aba" style="color:#fff" data-ir-aba="evolucao">Ver relatórios</button></div>';
+  }
+  function painelCicloAnel(d) {
+    if (!d.temPlano || !d.totalAulas) return '';
+    const pct = Math.round(100 * d.aulasFeitas / d.totalAulas), c = 2 * Math.PI * 54;
+    const prox = d.aulaEmVigor ? d.aulaEmVigor.titulo : '';
+    return '<div class="painel" data-ciclo-anel style="display:flex;align-items:center;gap:14px;border-radius:16px">' +
+      '<svg width="92" height="92" viewBox="0 0 140 140" role="img" aria-label="Ciclo do plano: ' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas, ' + pct + '%" style="flex-shrink:0">' +
+      '<circle cx="70" cy="70" r="54" fill="none" stroke="#E7EFEA" stroke-width="16"></circle>' +
+      (pct ? '<circle cx="70" cy="70" r="54" fill="none" stroke="#3F7A22" stroke-width="16" stroke-linecap="round" stroke-dasharray="' + (c * pct / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 70 70)"></circle>' : '') +
+      '<text x="70" y="80" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-weight="700" fill="#141210">' + pct + '%</text></svg>' +
+      '<div style="min-width:0"><h2>Ciclo do plano</h2><div style="font-size:13px;color:var(--cinza)">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas feitas</div>' +
+      (prox ? '<div style="font-size:13px;font-weight:600;margin-top:3px">Próxima do plano: ' + escapar(prox) + '</div>' : '') +
+      '<button type="button" class="link-aba" data-ir-aba="plano">Ver o plano</button></div></div>';
   }
   function painelProximasCurtas(d) {
     const l = (d.proximasAulas || []).slice(0, 3);
