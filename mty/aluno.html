@@ -563,7 +563,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
-        painelMinhasAulas(d) + painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosCiclo(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelMinhasAulas(d) + painelSaldoAulas(d) + painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosCiclo(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -573,7 +573,7 @@ function todosHorarios(agenda) {
     let html = '';
     html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header><div id="ql-avisos-celular"></div>';
     if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
-    html += painelMinhasAulas(d);
+    html += painelMinhasAulas(d) + painelSaldoAulas(d);
     html += painelProximaAula(d);
     html += painelMinhaArea();
     html += '<div id="ar-painel"></div>';
@@ -1055,6 +1055,30 @@ function todosHorarios(agenda) {
         '</div></div>';
     }).join('') + '</div>';
     html += '<p class="aviso-mini" style="font-size:12.5px;margin:10px 0 0">Para faltar ou trocar de horário, fale direto com o seu professor.</p></div>';
+    return html;
+  }
+
+  /* Mensalidade de N aulas (26/11/2026, pedido do Richard: "que isso apareça para o aluno, para ele saber quantas aulas ele fez,
+     quantas aulas ele tem para repor, quantas aulas nós temos de crédito com relação ao aluno"). Vem pronto do servidor
+     (ver-aluno.js: saldoAulasDoAluno); só aparece para quem tem a mensalidade marcada por número de aulas. */
+  function painelSaldoAulas(d) {
+    const s = d.saldoAulas;
+    if (!s || !s.pagasMes) return '';
+    const aula = function (n) { return n + (n === 1 ? ' aula' : ' aulas'); };
+    const nomeMes = function (m) { const p = String(m || '').split('-'); const nomes = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']; return p.length === 2 ? nomes[Number(p[1]) - 1] + ' de ' + p[0] : ''; };
+    const caixa = function (rotulo, v, cor) {
+      return '<div style="flex:1 1 120px;border:1px solid rgba(0,0,0,.1);border-radius:10px;padding:8px 10px"><div style="font-size:12px;color:#6b6b6b">' + escapar(rotulo) + '</div>' +
+        '<div style="font-size:22px;font-weight:700' + (cor ? ';color:' + cor : '') + '">' + v + '</div></div>';
+    };
+    let html = '<div class="painel" data-saldo-aulas><h2>Minhas aulas</h2>';
+    html += '<p class="desc" style="margin:0 0 10px">Sua mensalidade cobre ' + escapar(aula(s.pagasMes)) + ' por mês. Nos meses com mais aulas, as que passam ficam como crédito e cobrem as suas faltas.</p>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+      caixa('Feitas neste mês', s.feitasNoMes) + caixa('Feitas desde ' + nomeMes(s.desde), s.feitas) +
+      caixa('Para repor', s.aRepor, s.aRepor ? '#B23B2E' : '') + caixa('Crédito da academia', s.credito, s.credito ? '#2E7D32' : '') + '</div>';
+    html += '<p class="aviso-mini" style="font-size:12.5px;margin:10px 0 0">' + (s.aRepor
+      ? 'Você tem ' + escapar(aula(s.aRepor)) + ' para repor. Combine o dia com o seu professor.'
+      : s.credito ? 'A academia já deu ' + escapar(aula(s.credito)) + ' a mais do que a mensalidade cobre; elas cobrem as próximas faltas.'
+      : 'Tudo em dia.') + '</p></div>';
     return html;
   }
 

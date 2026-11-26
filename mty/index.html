@@ -5179,6 +5179,86 @@ function rascunhoAindaValido(rascunho, aulaId, hoje) {
    registra a decisão, não move nada sozinho na agenda. Quem combina o
    encaixe de verdade (quadra, horário do professor) é o treinador, por
    fora do app, como já acontece com pendência de turma. */
+/* Mensalidade de N aulas (26/11/2026, pedido do Richard: "a mensalidade ser referente a 3 aulas ao invés de 4... tem mês que
+   nós temos 5 aulas. Essas aulas excedentes ficam como crédito para eventuais reposições"; decisões dele: por aluno, a falta é
+   abatida sozinha do crédito e o crédito acumula). aluno.aulasPagasMes = N (vazio: todas as aulas do mês, como sempre foi) e
+   aluno.aulasPagasDesde = "AAAA-MM" (o marco zero manda se for depois). A conta é QLAulasMes.saldoDeAulas. Não muda valor. */
+function mesPadraoAulasPagas() {
+  const m = dataISO(new Date()).slice(0, 7), z = String(MARCO_ORG_APP || "").slice(0, 7);
+  return z && z > m ? z : m;
+}
+function CampoAulasPagas({ valor, desde, aoMudar, compacto }) {
+  const n = Number(valor) || 0;
+  return (
+    <div data-aulas-pagas>
+      <select style={entrada} value={n ? String(n) : ""} aria-label="Aulas pagas na mensalidade"
+        onChange={(e) => { const v = Number(e.target.value) || 0; aoMudar(v ? { aulasPagasMes: v, aulasPagasDesde: desde || mesPadraoAulasPagas() } : { aulasPagasMes: null, aulasPagasDesde: null }); }}>
+        <option value="">Todas as aulas do mês (como sempre foi)</option>
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => <option key={k} value={String(k)}>{k + (k === 1 ? " aula" : " aulas") + " por mês (as a mais viram crédito)"}</option>)}
+      </select>
+      {n > 0 && (
+        <div className="flex items-center gap-2 mt-2" style={{ flexWrap: "wrap" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 12.5, color: C.grafite }}>Contar a partir de</span>
+          <input type="month" style={{ ...entrada, width: "auto" }} value={desde || mesPadraoAulasPagas()} aria-label="Contar a partir de"
+            onChange={(e) => e.target.value && aoMudar({ aulasPagasMes: n, aulasPagasDesde: e.target.value })} />
+        </div>
+      )}
+      {n > 0 && !compacto && (
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+          A aula da semana segue normal. Num mês com 4 ou 5 aulas, as que passam de {n} ficam como crédito da academia com o aluno e cobrem
+          as faltas dele sozinhas; só vira reposição o que o crédito não cobre. O valor da mensalidade não muda.
+        </p>
+      )}
+    </div>
+  );
+}
+function CardSaldoAulas({ aluno, alunos, turmas, ocorrencias }) {
+  const [aberto, setAberto] = useState(false);
+  const s = useMemo(() => (window.QLAulasMes && QLAulasMes.aulasPagas(aluno)
+    ? QLAulasMes.saldoDeAulas({ ocorrencias, alunos, turmas, hoje: dataISO(new Date()), alunoId: aluno.id }) : null),
+    [aluno, alunos, turmas, ocorrencias]);
+  if (!s) return null;
+  const nome = (s.desde && QLAulasMes.nomeDoMes(s.desde)) || "";
+  const tile = (rotulo, v, cor) => (
+    <div style={{ flex: "1 1 120px", background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 10px" }}>
+      <div style={{ fontFamily: ARCH, fontSize: 11.5, color: C.grafite }}>{rotulo}</div>
+      <div style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700, color: cor || C.tinta }}>{v}</div>
+    </div>
+  );
+  return (
+    <div className="mt-2 mb-3" data-saldo-aulas style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+      <Etiqueta cor={C.saibro}>{"Mensalidade de " + s.pagasMes + (s.pagasMes === 1 ? " aula" : " aulas") + " por mês"}</Etiqueta>
+      <div className="flex gap-2 mt-2" style={{ flexWrap: "wrap" }}>
+        {tile("Feitas neste mês", s.feitasNoMes)}
+        {tile("Feitas desde " + nome, s.feitas)}
+        {tile("Para repor", s.aRepor, s.aRepor ? "#B4532A" : null)}
+        {tile("Crédito da academia", s.credito, s.credito ? C.saibro : null)}
+      </div>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+        Aulas a mais (acima de {s.pagasMes} no mês) viram crédito da academia e cobrem as faltas sozinhas; só vira reposição o que o crédito não cobre.
+      </p>
+      <button type="button" onClick={() => setAberto(!aberto)} style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.tinta, background: "none", border: "none", padding: "6px 0 0", cursor: "pointer", textDecoration: "underline" }}>
+        {aberto ? "Esconder mês a mês" : "Ver mês a mês"}
+      </button>
+      {aberto && (
+        <div className="mt-2" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: ARCH, fontSize: 12.5 }}>
+            <thead><tr style={{ color: C.grafite, textAlign: "left" }}><th>Mês</th><th>Feitas</th><th>Faltas</th><th>Cancel.</th><th>Sem reg.</th><th>A fazer</th><th>Saldo</th></tr></thead>
+            <tbody>
+              {s.meses.map((m) => (
+                <tr key={m.mes} style={{ borderTop: "1px solid " + C.linha }}>
+                  <td>{m.rotulo}</td><td>{m.feitas + (m.reposicoes ? " (" + m.reposicoes + " repos.)" : "")}</td><td>{m.faltas}</td><td>{m.canceladas}</td><td>{m.semRegistro}</td><td>{m.aFazer}</td>
+                  <td style={{ fontWeight: 700, color: m.saldo > 0 ? C.saibro : m.saldo < 0 ? "#B4532A" : C.tinta }}>{m.saldo > 0 ? "+" + m.saldo : m.saldo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CardPedidosReposicao({ aluno, aoMudar }) {
   const pendentes = (aluno.pedidosReposicao || []).filter((p) => p.status === "pendente");
   if (pendentes.length === 0) return null;
@@ -7076,6 +7156,9 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             </Campo>
             <Campo rotulo="Duração da aula" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas.">
               <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
+            </Campo>
+            <Campo rotulo="Mensalidade cobre" nota="Quantas aulas do mês a mensalidade paga. Vale para as aulas individuais e de turma deste jogador.">
+              <CampoAulasPagas valor={f.aulasPagasMes} desde={f.aulasPagasDesde} aoMudar={(patch) => setF((x) => ({ ...x, ...patch }))} />
             </Campo>
             <Campo rotulo="Dias de quadra por semana" nota={!f.diasQuadra ? "Não informado" : null}>
               <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + (d === 1 ? " dia" : " dias") }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} />
@@ -22032,6 +22115,8 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
   const [enviando, setEnviando] = useState(false);
   /* reposição: qual aula perdida está sendo reposta ("" = reposição extra; null = a mais antiga, até escolher) */
   const [repoe, setRepoe] = useState(null);
+  /* mensalidade de N aulas do jogador (undefined = não mexer) */
+  const [aulasPagasAg, setAulasPagasAg] = useState(undefined);
 
   /* Clicar num dia/horário/quadra específico da Agenda (em vez do botão
      genérico "+ Agendar") precisa pré-preencher SÓ o contexto conhecido
@@ -22052,6 +22137,7 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
         if (ent && horaInicial) setHoraFim(horaMaisMinutos(horaInicial, minutosDaDuracao(ent.duracaoPadrao)));
       }
       setRepoe(repoeInicial || null);
+      setAulasPagasAg(undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aberto, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alvoInicial, repoeInicial]);
@@ -22130,7 +22216,7 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           if (!disp.livre) { setErro(disp.motivo + " (validamos só a primeira data; semanas futuras podem precisar de checagem manual)"); return; }
         }
         if (tipo === "turma") setTurmas(turmas.map((t) => (t.id === entidade.id ? { ...t, horarios: [...(t.horarios || []), novoHorario] } : t)));
-        else setAlunos(alunos.map((a) => (a.id === entidade.id ? { ...a, horarios: [...(a.horarios || []), novoHorario] } : a)));
+        else setAlunos(alunos.map((a) => (a.id === entidade.id ? { ...a, horarios: [...(a.horarios || []), novoHorario], ...(aulasPagasAg || {}) } : a)));
       } else {
         const candidata = novaOcorrencia({
           origemTipo, origemId: entidade.id, recorrenciaChave: null, data, horaInicio, horaFim, quadraId: quadraId || "",
@@ -22274,6 +22360,15 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
                     valor={repeticao} aoMudar={setRepeticao} />
                 </Campo>
               )}
+              {tipo === "individual" && repeticao === "semanal" && alunoId && (() => {
+                const al = alunos.find((a) => a.id === alunoId) || {};
+                const atual = aulasPagasAg || { aulasPagasMes: al.aulasPagasMes, aulasPagasDesde: al.aulasPagasDesde };
+                return (
+                  <Campo rotulo="Mensalidade cobre" nota="Fica na ficha do jogador. Num mês com 4 ou 5 aulas, as que passam ficam como crédito para reposição.">
+                    <CampoAulasPagas compacto valor={atual.aulasPagasMes} desde={atual.aulasPagasDesde} aoMudar={setAulasPagasAg} />
+                  </Campo>
+                );
+              })()}
               <Campo rotulo="Observação (opcional)">
                 <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={observacao} onChange={(e) => setObservacao(e.target.value)}
                   placeholder={tipo === "reposicao" ? (perdidaRepo ? "Reposição da aula de " + QLAulasMes.textoPerdida(perdidaRepo) : "Ex.: aula extra antes do torneio") : undefined} />
@@ -25733,7 +25828,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-agenda-horarios";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-mensalidade-aulas";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11-ficha-rapida";
@@ -25742,7 +25837,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Agenda: horário tirado sai de verdade", d: "Quando o horário fixo sai da ficha do jogador ou da turma, as próximas aulas daquele horário saem da Agenda (antes ficavam lá e conflitavam com a turma). Em Apagar da agenda › Esta e as próximas, as aulas das semanas seguintes agora somem e não voltam: a Agenda passou a ser juntada entre os aparelhos, então um celular com a Agenda antiga aberta não traz de volta o que foi apagado em outro. Aulas já dadas, com presença marcada ou que já começaram ficam como estão. Encerrar uma série em Horários recorrentes também tira as próximas da Agenda, em vez de deixá-las como canceladas contando como reposição.", onde: "Agenda", aba: "agenda" },
+  { novo: true, t: "Mensalidade de 3 aulas, com crédito", d: "Agora dá para marcar, por aluno, quantas aulas do mês a mensalidade cobre (por exemplo, 3). A aula da semana segue normal: num mês com 4 ou 5 aulas, as que passam de 3 ficam como crédito da academia com o aluno e cobrem as faltas dele sozinhas, de um mês para o outro; só vira reposição o que o crédito não cobre. Marque na ficha do jogador (Rotina de treino › Mensalidade cobre) ou no + Agendar, numa aula individual que se repete. A página do jogador mostra as aulas feitas, as para repor e o crédito da academia, mês a mês; o aluno vê o mesmo no Meu plano, e a Cobrança mostra a regra ao lado do nome. O valor da mensalidade não muda. A conta começa no marco zero de 1º de dezembro.", onde: "Jogadores › ficha › Rotina de treino e Agenda › + Agendar", aba: "alunos" },
+  { t: "Agenda: horário tirado sai de verdade", d: "Quando o horário fixo sai da ficha do jogador ou da turma, as próximas aulas daquele horário saem da Agenda (antes ficavam lá e conflitavam com a turma). Em Apagar da agenda › Esta e as próximas, as aulas das semanas seguintes agora somem e não voltam: a Agenda passou a ser juntada entre os aparelhos, então um celular com a Agenda antiga aberta não traz de volta o que foi apagado em outro. Aulas já dadas, com presença marcada ou que já começaram ficam como estão. Encerrar uma série em Horários recorrentes também tira as próximas da Agenda, em vez de deixá-las como canceladas contando como reposição.", onde: "Agenda", aba: "agenda" },
   { t: "Marco zero em 1º de dezembro", d: "A partir de 1º de dezembro de 2026 o Team Yoda roda tudo pelo app, e a contagem começa do zero: aulas do mês, faltas, canceladas, aulas sem registro, reposições e o fechamento para a cobrança e o pagamento dos professores contam só de 1º de dezembro em diante, sempre pelo mês (o planejamento segue como está, em paralelo). As reposições de antes foram zeradas: créditos ainda não usados e pedidos pendentes saem da lista (ficam guardados, nada foi apagado); reposição que já estava marcada na Agenda continua valendo. A agenda, os registros e os planejamentos de antes continuam guardados.", onde: "Agenda, Relatório de aulas e reposições", aba: "agenda" },
   { t: "Jogadores voltaram a salvar", d: "A lista de jogadores da academia tinha chegado ao limite de 1 MB que a nuvem aceita num arquivo só, e por isso o cadastro de jogador novo e as mudanças nas fichas, planos e registros de aula deixaram de ser salvos. Agora a lista é guardada em partes e não tem mais esse limite. Se alguma aula ou ficha dos últimos dias não aparece, registre de novo.", onde: "Jogadores", aba: "alunos" },
   { t: "Aviso quando algo não salva na nuvem", d: "Se a nuvem recusar uma mudança nos jogadores ou nas turmas (por exemplo, o cadastro de um jogador novo), aparece um aviso vermelho no topo dizendo o que não foi salvo e por quê, com o botão Tentar de novo. Antes isso acontecia em silêncio e o jogador sumia ao abrir o app de novo. O cadastro de jogador novo no Team Yoda também não é mais barrado por limite de plano nem por data de licença.", onde: "Topo do app", aba: "alunos" },
@@ -26704,6 +26800,7 @@ const DOMINIO_TY = "teamyoda.com.br";
 /* marco zero da academia (26/11/2026): definido pela academia da conta (QLAulasMes.marcoDe); aulas "sem registro" de antes não
    cobram mais nada. A contagem do mês e as reposições usam o mesmo marco dentro do QLAulasMes. */
 let MARCO_ZERO_APP = "";
+let MARCO_ORG_APP = ""; /* o marco zero da academia, mesmo antes do dia (mês padrão da mensalidade de N aulas) */
 function depoisDoMarco(d) { return !MARCO_ZERO_APP || String(d || "") >= MARCO_ZERO_APP; }
 /* aviso de gravação que não chegou à nuvem (26/11/2026) e de lista de jogadores perto do limite do documento (1 MiB) */
 const NOMES_LISTA = { "mty:alunos:v2": "jogadores", "mty:turmas:v1": "turmas", "mty:eventos:v1": "eventos" };
@@ -27402,7 +27499,8 @@ function TelaCobranca() {
               <div key={l.chave} data-linha-cobranca={l.chave} style={{ borderBottom: "1px solid " + C.linha, padding: "7px 0", borderLeft: atr ? "3px solid #B23A2E" : "3px solid transparent", paddingLeft: 8 }}>
                 <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14 }}>
                   <input type="checkbox" checked={l.recebido} disabled={!!ocupado} onChange={(e) => marcar(l.chave, { recebidos: { [l.chave]: e.target.checked } })} />
-                  <span style={{ flex: 1 }}><b>{l.nome}</b> <span style={{ color: C.grafite }}>· {l.onde}{l.desconto ? " · desconto " + reais(l.desconto) : ""}</span></span>
+                  <span style={{ flex: 1 }}><b>{l.nome}</b> <span style={{ color: C.grafite }}>· {l.onde}{l.desconto ? " · desconto " + reais(l.desconto) : ""}</span>
+                    {l.aulas && <span data-cobranca-aulas style={{ display: "block", fontSize: 12, color: C.grafite }}>{l.aulas.texto}</span>}</span>
                   <b>{reais(l.valor)}</b>
                 </label>
                 <div className="flex flex-wrap items-center gap-2" style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4, paddingLeft: 24 }}>
@@ -29071,6 +29169,7 @@ function App() {
   /* marco zero (26/11/2026): a contagem e as reposições da academia começam no marco; a partir do dia, as reposições de antes
      são zeradas nos dados (créditos não usados → cancelado; pedidos pendentes → arquivado; nada apagado) */
   MARCO_ZERO_APP = (window.QLAulasMes && orgAtual && window.QLAulasMes.marcoVigente(orgAtual, window.QLAulasMes.hojeSP())) || "";
+  MARCO_ORG_APP = (window.QLAulasMes && orgAtual && window.QLAulasMes.marcoDe(orgAtual)) || "";
   if (window.QLAulasMes) window.QLAulasMes.definirMarco(MARCO_ZERO_APP);
   useEffect(() => {
     if (!MARCO_ZERO_APP || carregando || !prontoRef.current.alunos || !window.QLAulasMes) return;
@@ -29758,6 +29857,7 @@ function App() {
                       <CardTrilha aluno={aberto} aoVerCriterios={() => { setEtapaFichaAlvo(3); setSubaba("ficha"); }} />
                     </div>
                   )}
+                  <CardSaldoAulas aluno={aberto} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} />
                   <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
                   <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
                   {subaba !== "sessao" && <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />}

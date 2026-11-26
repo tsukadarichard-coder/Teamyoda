@@ -7,6 +7,7 @@
    jogador: sem ele batendo exatamente, a function nem devolve o nome,
    nem aceita gravar nada. */
 const LA = require("./_lista-alunos"); // lista de jogadores em partes (26/11/2026)
+const QA = require("./_aulas-mes"); // mensalidade de N aulas: saldo do aluno (26/11/2026)
 const { admin, app } = require("./_firebase-admin");
 const { limpar: limparResumoJogo } = require("./_scout-publico");
 
@@ -254,13 +255,14 @@ async function responderGet(org, id, q, ctx) {
   /* análises de movimento, jogos com scout e o que mais o treinador registrou: tudo o que é do jogador vai no link */
   const extras = await conteudoDoAluno(org, id, aluno);
   /* próximas aulas (14 dias) e professores: Agenda + horários fixos + alto rendimento; sem os dados, o resto da página segue */
-  let proximasAulas = [], professores = [];
+  let proximasAulas = [], professores = [], saldoAulas = null;
   try {
     const [docOc, docAr, docQ] = await Promise.all([lerDado(org, "mty:ocorrencias:v1"), lerDado(org, "mty:arTurmas:v1"), lerDado(org, "mty:quadras:v1")]);
     const ocorrencias = docOc ? lerJSON(docOc.value, []) : [], arTurmas = docAr ? lerJSON(docAr.value, []) : [], quadras = docQ ? lerJSON(docQ.value, []) : [];
     const hojeSP = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
     proximasAulas = proximasAulasDoAluno({ aluno, turmasDoAluno, ocorrencias: Array.isArray(ocorrencias) ? ocorrencias : [], arTurmas: Array.isArray(arTurmas) ? arTurmas : [], quadras: Array.isArray(quadras) ? quadras : [], hoje: hojeSP, dias: 14 });
     professores = professoresDoAluno(aluno, turmasDoAluno, Array.isArray(arTurmas) ? arTurmas : []);
+    saldoAulas = saldoAulasDoAluno({ org, aluno, turmasDoAluno, ocorrencias: Array.isArray(ocorrencias) ? ocorrencias : [], hoje: hojeSP });
   } catch (e) { proximasAulas = []; professores = professoresDoAluno(aluno, turmasDoAluno, []); }
   const planosEquipe = await planosEquipeDoAluno(org, id).catch(() => []);
 
@@ -275,6 +277,7 @@ async function responderGet(org, id, q, ctx) {
     academiaNome,
     professores,
     proximasAulas,
+    saldoAulas,
     nivel: aluno.nivel || null,
     /* false só quando o nível veio de um atalho que pula o checklist de
        critérios observados em quadra (sugestão por IA aplicada direto —
@@ -428,6 +431,18 @@ function lerJSON(v, padrao) { try { const x = JSON.parse(v); return x == null ? 
 const DIAS_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 function minutosDe(d) { if (typeof d === "number") return d; return { "30min": 30, "45min": 45, "1h": 60, "1h30": 90, "2h": 120 }[d] || 60; }
 function somaHora(h, min) { const [a, b] = String(h || "00:00").split(":").map(Number), t = a * 60 + b + (min || 0); return String(Math.floor(t / 60) % 24).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); }
+/* Mensalidade de N aulas (26/11/2026, pedido do Richard: "que isso apareça para o aluno, para ele saber quantas aulas ele fez,
+   quantas aulas ele tem para repor, quantas aulas nós temos de crédito"): só para quem tem aluno.aulasPagasMes. Conta só as aulas
+   deste aluno (QLAulasMes.saldoDeAulas, desde o marco zero da academia). Nada de nome de outro aluno sai daqui. */
+function saldoAulasDoAluno({ org, aluno, turmasDoAluno, ocorrencias, hoje }) {
+  if (!QA.aulasPagas(aluno)) return null;
+  QA.definirMarco(QA.marcoVigente(org, hoje));
+  const s = QA.saldoDeAulas({ ocorrencias, alunos: [aluno], turmas: turmasDoAluno || [], hoje, alunoId: aluno.id });
+  if (!s) return null;
+  return { pagasMes: s.pagasMes, desde: s.desde, feitas: s.feitas, feitasNoMes: s.feitasNoMes, aFazerNoMes: s.aFazerNoMes, credito: s.credito, aRepor: s.aRepor,
+    meses: s.meses.map((m) => ({ mes: m.mes, rotulo: m.rotulo, feitas: m.feitas, reposicoes: m.reposicoes, faltas: m.faltas, canceladas: m.canceladas, saldo: m.saldo })) };
+}
+
 function proximasAulasDoAluno({ aluno, turmasDoAluno, ocorrencias, arTurmas, quadras, hoje, dias }) {
   const id = aluno.id, n = dias || 14, fim = new Date(hoje + "T12:00:00Z"); fim.setUTCDate(fim.getUTCDate() + n - 1);
   const fimISO = fim.toISOString().slice(0, 10);
@@ -615,4 +630,4 @@ function resposta(statusCode, corpo) {
 }
 
 /* usado pela Área do aluno (aluno-conta.js): mesmos dados e as mesmas ações do link, com a conta logada no lugar do token */
-module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS, proximasAulasDoAluno, professoresDoAluno };
+module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS, proximasAulasDoAluno, professoresDoAluno, saldoAulasDoAluno };
