@@ -62,6 +62,7 @@ const base = "http://localhost:" + srv.address().port;
   const erros = [];
   const abrir = async (papel, email, caminho, papelFin, org, extra) => {
     const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
+    if (extra && extra.relogio) await ctx.clock.setFixedTime(new Date(extra.relogio));
     if (papelFin) await ctx.route(/\/\.netlify\/functions\/financeiro/, (rota) => pedidosFin.push(rota.request().url()) && rota.fulfill({ contentType: "application/json", body: JSON.stringify({ papel: papelFin }) }));
     await ctx.addInitScript((f) => { window.__FAKE = f; try { localStorage.setItem("ql-onboarding-dispensado", "1"); } catch (e) { /* ok */ } }, { papel, email, org, ...(extra || {}) });
     await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => {
@@ -117,6 +118,34 @@ const base = "http://localhost:" + srv.address().port;
   });
   assert(nuvem.partes >= 2 && nuvem.bytes > 1048576 && nuvem.n === 421 && nuvem.tem && nuvem.v2 === 420, "lista em partes: " + JSON.stringify(nuvem));
   assert(!(await p.$("[data-aviso-nuvem]")), "salvou sem aviso");
+  await p.close();
+  /* 1d. marco zero (26/11/2026): no dia 2/12, reposições de novembro zeradas nos dados e aula de novembro sem registro não cobra */
+  const marco = {
+    "orgs/team-yoda/dados/mty:alunos:v2": { value: JSON.stringify([{ id: "m1", nome: "Marta Marco", cadastroConcluido: true, professorUid: "u-coordenador",
+      creditosReposicao: [{ id: "c1", status: "disponivel", criadoEm: "2026-11-20T10:00:00Z" }, { id: "c2", status: "disponivel", criadoEm: "2026-12-01T13:00:00Z" }],
+      pedidosReposicao: [{ id: "p1", status: "pendente", em: "2026-11-25T10:00:00Z" }] }]) },
+    "orgs/team-yoda/dados/mty:ocorrencias:v1": { value: JSON.stringify([
+      { id: "o1", origemTipo: "individual", origemId: "m1", data: "2026-11-27", horaInicio: "09:00", horaFim: "10:00", tipo: "regular", status: "agendada", professorUid: "u-coordenador" },
+      { id: "o2", origemTipo: "individual", origemId: "m1", data: "2026-12-01", horaInicio: "09:00", horaFim: "10:00", tipo: "regular", status: "agendada", professorUid: "u-coordenador" }]) },
+  };
+  p = await abrir("coordenador", "coord@teste.com", "/treinador", null, null, { store: marco, relogio: "2026-12-02T12:00:00-03:00" });
+  await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(2500);
+  const dm = await p.evaluate(async () => {
+    const d = window.firebase.firestore().collection("orgs").doc("team-yoda").collection("dados");
+    const pr = (await d.doc("mty:alunos:v3").get()).data(); let t = ""; for (let i = 1; i <= pr.partes; i++) t += (await d.doc("mty:alunos:v3~" + i).get()).data().texto;
+    const a = JSON.parse(t)[0];
+    return { cred: a.creditosReposicao.map((c) => c.status), ped: a.pedidosReposicao.map((x) => x.status), marco: window.QLAulasMes.marco() };
+  });
+  assert.deepStrictEqual(dm, { cred: ["cancelado", "disponivel"], ped: ["arquivado"], marco: "2026-12-01" }, "marco zero nos dados: " + JSON.stringify(dm));
+  const avisosTxt = await p.evaluate(() => document.body.innerText);
+  assert(!/27\/11/.test(avisosTxt) || !/sem registro/i.test(avisosTxt.split("27/11")[1] || ""), "aula de novembro sem registro não cobra");
+  await p.close();
+  /* antes do dia (30/11), nada muda */
+  p = await abrir("coordenador", "coord@teste.com", "/treinador", null, null, { store: marco, relogio: "2026-11-30T12:00:00-03:00" });
+  await p.waitForSelector("[data-menu-lateral]", { timeout: 120000 }); await p.waitForTimeout(2500);
+  assert.strictEqual(await p.evaluate(() => window.QLAulasMes.marco()), "", "antes de 1/12 o marco não vale");
+  const antes = await p.evaluate(async () => { const d = window.firebase.firestore().collection("orgs").doc("team-yoda").collection("dados"); const v3 = (await d.doc("mty:alunos:v3").get()); if (!v3.exists) return JSON.parse((await d.doc("mty:alunos:v2").get()).data().value)[0].creditosReposicao.map((c) => c.status); let t = ""; for (let i = 1; i <= v3.data().partes; i++) t += (await d.doc("mty:alunos:v3~" + i).get()).data().texto; return JSON.parse(t)[0].creditosReposicao.map((c) => c.status); });
+  assert.deepStrictEqual(antes, ["disponivel", "disponivel"], "antes do dia os créditos continuam");
   await p.close();
   /* 2. a nuvem recusa a lista de jogadores: aviso com o motivo */
   p = await abrir("coordenador", "coord@teste.com", "/treinador", null, null, { falhar: "mty:alunos:v3" });

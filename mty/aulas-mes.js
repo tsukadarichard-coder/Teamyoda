@@ -112,7 +112,47 @@
 
   /* Lista única de aulas do período. `extras` são ocorrências ainda não gravadas (as que a grade de horários já previa e
      ninguém abriu na Agenda) — entram como qualquer outra, com `virtual: true`. Locação e bloqueio não são aula. */
+  /* Marco zero (26/11/2026, pedido do Richard: "Pode fazer o Marco zero... as reposições zeram"): a contagem de aulas, faltas,
+     canceladas, pendências e reposições da academia começa nesta data. O que veio antes fica guardado (agenda, registros,
+     planejamentos), só não entra mais em nenhuma conta. O app e o servidor chamam definirMarco(marcoDe(org)) antes de contar. */
+  const MARCOS_ZERO = { "team-yoda": "2026-12-01" };
+  let marcoAtual = "";
+  function marcoDe(org) { return MARCOS_ZERO[org] || ""; }
+  /* o marco só passa a valer no próprio dia (até lá, a contagem segue como antes); hoje = AAAA-MM-DD em São Paulo */
+  function marcoVigente(org, hoje) { const m = marcoDe(org); return m && hoje && hoje >= m ? m : ""; }
+  function hojeSP(ms) { return new Date((ms == null ? Date.now() : ms) - 3 * 3600000).toISOString().slice(0, 10); }
+  function definirMarco(d) { marcoAtual = /^\d{4}-\d{2}-\d{2}$/.test(String(d || "")) ? d : ""; return marcoAtual; }
+  function marco() { return marcoAtual; }
+  /* zera as reposições de antes do marco, sem apagar nada: créditos ainda não usados viram "cancelado" e pedidos pendentes
+     viram "arquivado", com o motivo. Créditos já marcados numa aula (reservado/utilizado) ficam como estão. Só vale a partir
+     do dia do marco (antes disso, devolve a mesma lista). Devolve { alunos, mudou, creditos, pedidos }. */
+  function aplicarMarcoZero(alunos, m, hoje, agoraISO) {
+    const lista = Array.isArray(alunos) ? alunos : [];
+    if (!m || !hoje || hoje < m) return { alunos: lista, mudou: false, creditos: 0, pedidos: 0 };
+    const motivo = "Marco zero (" + dataBR(m) + "/" + m.slice(0, 4) + "): reposições de antes zeradas";
+    let creditos = 0, pedidos = 0;
+    const nova = lista.map((a) => {
+      if (!a) return a;
+      let mud = false;
+      const cs = (a.creditosReposicao || []).map((c) => {
+        if (!c || (c.status !== "disponivel" && c.status !== "pendente_aprovacao") || c.ocorrenciaReposicaoId) return c;
+        if (String(c.criadoEm || "").slice(0, 10) >= m) return c;
+        mud = true; creditos++;
+        return { ...c, status: "cancelado", canceladoEm: agoraISO || "", motivoCancelamento: motivo, marcoZero: m };
+      });
+      const ps = (a.pedidosReposicao || []).map((p) => {
+        if (!p || p.status !== "pendente") return p;
+        if (String(p.em || p.criadoEm || p.data || "").slice(0, 10) >= m) return p;
+        mud = true; pedidos++;
+        return { ...p, status: "arquivado", arquivadoEm: agoraISO || "", motivoArquivado: motivo, marcoZero: m };
+      });
+      return mud ? { ...a, creditosReposicao: cs, pedidosReposicao: ps } : a;
+    });
+    return { alunos: creditos + pedidos ? nova : lista, mudou: creditos + pedidos > 0, creditos, pedidos };
+  }
+
   function aulasDoPeriodo({ ocorrencias, alunos, turmas, inicio, fim, hoje, extras }) {
+    if (marcoAtual && inicio < marcoAtual) inicio = marcoAtual; /* antes do marco zero nada conta */
     const idx = indiceRegistros(alunos, turmas);
     const usados = new Set();
     const aulas = [];
@@ -467,6 +507,7 @@
     TIPOS_AULA, ROTULO, MOTIVOS, MOTIVO_IGNORAR, COR, SIMBOLO, ROTULO_PRESENCA,
     periodoDoMes, nomeDoMes, somarMes, criadoEmISO, indiceRegistros, chaveDaOcorrencia, membrosDaAula, statusDaAula,
     presencaNaAula, aulasDoPeriodo, fechamento, csvAlunos, csvProfessores, csvAulas, htmlAluno, htmlGeral, dataBR, diaSemanaCurto,
+    MARCOS_ZERO, marcoDe, marcoVigente, hojeSP, definirMarco, marco, aplicarMarcoZero,
     JANELA_DIAS, SITUACAO_REPO, periodo, navegarPeriodo, somaDias, pendentesDeReposicao, todasPendentes, contagemPendentes, textoPerdida, textoRepoe, reposicoesDoPeriodo,
   };
   if (typeof module === "object" && module.exports) module.exports = api;
